@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diagnostic de site — bioclimatique</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Diagnostic de site</h1>
+      <form id="search-form" class="search">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Adresse ou lieu (ex. Place de la Comédie, Montpellier)"
+          autocomplete="off"
+        />
+        <label for="radius-select" class="radius-label">Périmètre</label>
+        <select id="radius-select"></select>
+        <button type="submit">Analyser</button>
+      </form>
+      <div id="site-info" class="site-info" hidden></div>
+    </header>
+
+    <main class="layout">
+      <section id="map" class="map" aria-label="Carte du site"></section>
+      <section id="modules" class="modules" aria-label="Résultats du diagnostic">
+        <p class="placeholder">Recherchez une adresse pour lancer le diagnostic.</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <button id="export-btn" disabled>Exporter le rapport (PDF)</button>
+      <p class="attributions">
+        Données : © OpenStreetMap · © IGN / Géoplateforme (Etalab 2.0) ·
+        Open-Meteo · PVGIS © Union européenne
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

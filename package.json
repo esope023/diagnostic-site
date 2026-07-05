@@ -1,0 +1,26 @@
+{
+  "name": "diagnostic-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Outil de diagnostic bioclimatique de site — architecture modulaire",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "leaflet": "^1.9.4",
+    "jspdf": "^2.5.1",
+    "html2canvas": "^1.4.1",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8",
+    "@types/three": "^0.160.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}
