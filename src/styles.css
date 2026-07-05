@@ -60,6 +60,7 @@ body {
 
 .chart-box { position: relative; height: 260px; margin-bottom: 14px; }
 .module-subtitle { font-size: 0.9rem; margin: 16px 0 8px; color: var(--ink); }
+.reg-list { margin: 4px 0 12px; padding-left: 20px; font-size: 0.85rem; line-height: 1.7; }
 .projections-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
 @media (max-width: 520px) { .projections-grid { grid-template-columns: 1fr; } }
 .projection-card {

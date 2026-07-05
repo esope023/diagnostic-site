@@ -41,7 +41,14 @@ export const natureModule: DiagnosticModule<NatureRaw, NatureResult> = {
       title: "Nature",
       summary:
         `Dans un rayon de ${result.effectiveRadiusM} m : ${result.greenPct} % de surface ` +
-        `végétalisée, ${result.waterPct} % de surface en eau, ${result.treeCount} arbres recensés.`,
+        `végétalisée, ${result.waterPct} % de surface en eau, ${result.treeCount} arbres recensés. ` +
+        (result.protectedZonesFetchFailed
+          ? "Zonages de protection : non vérifiés (service indisponible)."
+          : result.protectedZones.length > 0
+            ? `${result.protectedZones.length} zonage(s) de protection sur le point (${result.protectedZones
+                .map((z) => z.label)
+                .join(", ")}).`
+            : "Aucun zonage de protection détecté sur le point."),
       indicators: [
         { label: "Surface végétalisée", value: `${result.greenPct} %` },
         { label: "Surface en eau", value: `${result.waterPct} %` },
@@ -49,13 +56,19 @@ export const natureModule: DiagnosticModule<NatureRaw, NatureResult> = {
         { label: "Arbres recensés", value: `${result.treeCount}` },
         { label: "Densité d'arbres", value: `${result.treeDensityHa} / ha` },
         { label: "Rayon analysé", value: `${result.effectiveRadiusM} m` },
+        {
+          label: "Zonages de protection",
+          value: result.protectedZonesFetchFailed ? "n.d." : `${result.protectedZones.length}`,
+        },
       ],
       charts: [{ title: "Occupation du sol", config: occupationSolConfig(result) }],
       notes: [
-        "Source : OpenStreetMap (Overpass), rayon défini par le cadrage d'analyse choisi.",
+        "Source végétalisation/eau : OpenStreetMap (Overpass), rayon défini par le cadrage choisi.",
         "Estimation haute : les polygones ne sont pas découpés au bord du rayon.",
         "Canopée limitée aux bois/forêts cartographiés en polygone (sous-estimation " +
           "probable des arbres isolés et jardins arborés).",
+        "Zonages de protection (Natura 2000, ZNIEFF, réserves, parcs) : source API Carto " +
+          "IGN/INPN, vérifiée sur le point précis, pas sur l'ensemble du rayon.",
         "Continuités écologiques réglementaires (trame verte/bleue, SRCE) non " +
           "intégrées : nécessitent les données régionales dédiées.",
       ],

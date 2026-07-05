@@ -6,7 +6,7 @@
 // qui demanderait une lib type turf). Les surfaces sont donc une borne haute,
 // pas une mesure exacte de ce qui est strictement dans le cercle. Documenté
 // dans l'export, pas masqué.
-import type { NatureRaw } from "./fetch";
+import type { NatureRaw, ProtectedZoneItem } from "./fetch";
 import { polygonAreaM2 } from "../../core/geo";
 
 export interface NatureResult {
@@ -22,6 +22,8 @@ export interface NatureResult {
   treeCount: number;
   /** Arbres recensés pour 10 000 m² (1 ha). */
   treeDensityHa: number;
+  protectedZones: ProtectedZoneItem[];
+  protectedZonesFetchFailed: boolean;
 }
 
 function sumArea(polys: { lat: number; lon: number }[][]): number {
@@ -54,5 +56,7 @@ export function computeNature(raw: NatureRaw): NatureResult {
     canopyPct: pct(canopyAreaM2, circleAreaM2),
     treeCount: raw.treeCount,
     treeDensityHa: hectares > 0 ? Math.round((raw.treeCount / hectares) * 10) / 10 : 0,
+    protectedZones: raw.protectedZones,
+    protectedZonesFetchFailed: raw.protectedZonesFetchFailed,
   };
 }

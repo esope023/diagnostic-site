@@ -35,9 +35,11 @@ import { eauModule } from "./modules/eau";
 import { natureModule } from "./modules/nature";
 import { urbanismeModule } from "./modules/urbanisme";
 import { soleilModule } from "./modules/soleil";
+import { reglementaireModule } from "./modules/reglementaire";
 registerModule(climatModule); // scope "site"
 registerModule(ventModule); // scope "site"
 registerModule(eauModule); // scope "site" (bâtiment, indépendant du rayon quartier)
+registerModule(reglementaireModule); // scope "site" (zonage/SUP/risques propres au point)
 registerModule(natureModule); // scope "quartier"
 registerModule(urbanismeModule); // scope "quartier"
 registerModule(soleilModule); // scope "quartier" (masques bâtis + héliodon 3D)

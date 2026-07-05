@@ -119,3 +119,56 @@ export function pvgis(tool: string): string {
   const base = `https://re.jrc.ec.europa.eu/api/v5_3/${tool}`;
   return PROXY_BASE ? `${PROXY_BASE}?url=${encodeURIComponent(base)}` : base;
 }
+
+/**
+ * API Carto — module Urbanisme (GPU : Géoportail de l'Urbanisme). Couches
+ * confirmées : zone-urba, municipality, assiette-sup-s/l/p. Format : GET avec
+ * geom=<GeoJSON géométrie> (Point ou Polygone), réponse GeoJSON.
+ */
+export const APICARTO_GPU_BASE = "https://apicarto.ign.fr/api/gpu";
+
+export function gpuZoneUrba(geom: object): string {
+  return `${APICARTO_GPU_BASE}/zone-urba?geom=${encodeURIComponent(JSON.stringify(geom))}`;
+}
+export function gpuMunicipality(insee: string): string {
+  return `${APICARTO_GPU_BASE}/municipality?insee=${insee}`;
+}
+export function gpuSup(layer: "assiette-sup-s" | "assiette-sup-l" | "assiette-sup-p", geom: object): string {
+  return `${APICARTO_GPU_BASE}/${layer}?geom=${encodeURIComponent(JSON.stringify(geom))}`;
+}
+
+/** API du Géoportail de l'Urbanisme — détails d'un document (lien règlement PDF). */
+export function gpuDocumentDetails(partition: string): string {
+  return `https://www.geoportail-urbanisme.gouv.fr/api/document/${partition}/details`;
+}
+
+/**
+ * API Géorisques (BRGM). Endpoints confirmés : /rga (fiable, dédié), et
+ * /resultats_rapport_risque (synthèse multi-risques en un appel — pratique
+ * mais signalé instable par des utilisateurs de l'API sur certaines périodes ;
+ * traité défensivement, voir reglementaire/fetch.ts).
+ */
+export const GEORISQUES_BASE = "https://georisques.gouv.fr/api/v1";
+
+export function georisquesRga(lat: number, lon: number): string {
+  return `${GEORISQUES_BASE}/rga?latlon=${lon},${lat}`;
+}
+export function georisquesSynthese(lat: number, lon: number): string {
+  return `${GEORISQUES_BASE}/resultats_rapport_risque?latlon=${lon},${lat}`;
+}
+export function georisquesCatnat(lat: number, lon: number, rayonM = 1000): string {
+  return `${GEORISQUES_BASE}/gaspar/catnat?longitude=${lon}&latitude=${lat}&rayon=${rayonM}&page_size=50`;
+}
+
+/**
+ * API Carto — module Nature (zonages de protection : Natura 2000, ZNIEFF,
+ * réserves, parcs). Couches confirmées par la doc IGN ; le SEGMENT D'URL de
+ * chaque couche (ex. "natura-habitat" vs "sic") n'a pas pu être vérifié en
+ * direct — à confirmer au premier test réel (voir note dans
+ * nature/fetch.ts). Format : GET avec geom=<GeoJSON Point ou Polygone>.
+ */
+export const APICARTO_NATURE_BASE = "https://apicarto.ign.fr/api/nature";
+
+export function natureLayerUrl(layer: string, geom: object): string {
+  return `${APICARTO_NATURE_BASE}/${layer}?geom=${encodeURIComponent(JSON.stringify(geom))}`;
+}

@@ -110,11 +110,12 @@ automatiquement.
 | Soleil — potentiel PV / solaire thermique | quartier | PVGIS 5.3 | ❌ **proxy requis** | **implémenté** (si proxy déployé) |
 | Vent — roses saisonnières | site | Open-Meteo (dir./vitesse horaires, 10 ans) | ✅ direct | **implémenté** |
 | Vent — accélérations, canyon, confort piéton | quartier | *aucune API* → indice qualitatif (Lawson) | — | qualitatif |
-| Nature — trame verte/bleue, canopée | quartier | Overpass (OSM) + IGN | ✅ direct | **implémenté** (proxy vert/eau/canopée) |
+| Nature — trame verte/bleue, canopée | quartier | Overpass (OSM) + IGN | ✅ direct | **implémenté** (proxy vert/eau/canopée + zonages protection) |
 | Eau — récupération EP | site | emprise toiture (Overpass/OSM) × pluie (Open-Meteo) | ✅ direct | **implémenté** |
 | Eau — infiltration, ruissellement | quartier | sol + imperméabilisation → indice | ✅ direct | qualitatif |
 | Urbanisme — compacité, orientations | quartier | emprises OSM (CES/COS/orientation) | ✅ direct | **implémenté** |
 | Urbanisme — îlot de fraîcheur, confort ESP | quartier | heuristique densité+hauteur (qualitatif) | ✅ direct | **implémenté** (qualitatif) |
+| Réglementaire — zonage PLU, SUP, risques | site | API Carto GPU (IGN) + Géorisques (BRGM) | ✅ direct | **implémenté** |
 
 ### Trois familles, à traiter dans cet ordre
 
@@ -264,6 +265,62 @@ Deux ajouts légers, sans nouvelle dépendance :
   ombres). Plutôt que dupliquer ce travail, le module Soleil s'y lie avec les
   coordonnées du site en paramètres d'URL. L'URL est configurable via
   `VITE_LEGACY_HELIODON_URL` (`.env`) si le déploiement change.
+
+## Extension Nature — zonages de protection réglementaires
+
+En plus du proxy OSM (verdure/eau/canopée), le module Nature interroge
+maintenant l'**API Carto module Nature** de l'IGN (données INPN/MNHN) pour
+détecter les zonages de protection officiels sur le point recherché : Natura
+2000 (habitat + oiseaux), ZNIEFF I/II, parcs nationaux/régionaux, réserves
+naturelles.
+
+**Incertitude assumée à vérifier au premier test réel** : contrairement aux
+autres API de ce projet, je n'ai pas pu confirmer par un appel direct le
+segment d'URL exact de chaque couche (`natura-habitat`, `znieff1`, etc. dans
+`src/modules/nature/fetch.ts`) ni le nom de la propriété portant le nom du
+site (plusieurs candidats testés défensivement : `sitename`, `nom`, `name`…).
+Si toutes les couches échouent, le module l'affiche explicitement
+("service indisponible") plutôt que d'afficher "aucune protection" — ce serait
+le pire des mensonges silencieux pour ce type d'information. Si une commune a
+une vraie zone Natura 2000 mais que le module affiche 0, commencer par
+vérifier le segment d'URL dans `PROTECTED_LAYERS` (`fetch.ts`).
+
+Vérifié sur le **point précis**, pas sur l'ensemble du rayon "quartier" :
+une zone protégée qui commence juste à côté du point recherché n'apparaîtra
+pas. Pour une vérification exhaustive dans un rayon, il faudrait interroger
+avec un polygone plutôt qu'un point (raffinement possible plus tard).
+
+## Module Réglementaire
+
+`src/modules/reglementaire/` — zonage PLU, lien vers le règlement, servitudes
+d'utilité publique, exposition RGA, synthèse des risques et historique
+catastrophes naturelles. Scope `"site"` (propre au point/parcelle, indépendant
+du rayon "quartier").
+
+Sources et points d'attention :
+
+- **Zonage PLU** : API Carto GPU (`apicarto.ign.fr/api/gpu/zone-urba`),
+  géométrie envoyée en `Point` (pas la parcelle complète — à noter si une
+  parcelle est à cheval sur deux zones). Détecte aussi le RNU (`gpu/municipality`)
+  quand la commune n'a pas de PLU publié.
+- **Lien vers le règlement** : API du Géoportail de l'Urbanisme
+  (`geoportail-urbanisme.gouv.fr/api/document/{partition}/details`), qui
+  renvoie l'archive et les fichiers PDF du document.
+- **SUP** : trois couches API Carto GPU (`assiette-sup-s/l/p`), combinées.
+  Couverture GPU incomplète (~20 % des communes, surtout rurales) : une
+  absence de résultat ne garantit pas l'absence réelle de servitude.
+- **RGA** (retrait-gonflement des argiles) : endpoint dédié Géorisques
+  (`/api/v1/rga`), le plus fiable des endpoints Géorisques utilisés ici.
+- **Synthèse multi-risques** : endpoint `/api/v1/resultats_rapport_risque`,
+  qui a l'avantage de tout donner en un appel mais dont des utilisateurs tiers
+  ont signalé une instabilité intermittente. Traité **très défensivement**
+  (`RisqueSyntheseRaw` dans `fetch.ts`) : le module affiche "indisponible"
+  plutôt que de planter ou d'inventer une structure de réponse.
+- **Historique CatNat** : `/api/v1/gaspar/catnat`, rayon 1 km autour du point.
+
+Toutes les requêtes sont indépendantes (`Promise.all` sur des fonctions qui
+catchent chacune leurs propres erreurs) : l'échec d'une source n'empêche pas
+d'afficher les autres.
 
 ## Module Soleil — points d'attention spécifiques
 
