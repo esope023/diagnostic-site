@@ -112,10 +112,12 @@ automatiquement.
 | Vent — accélérations, canyon, confort piéton | quartier | *aucune API* → indice qualitatif (Lawson) | — | qualitatif |
 | Nature — trame verte/bleue, canopée | quartier | Overpass (OSM) + IGN | ✅ direct | **implémenté** (proxy vert/eau/canopée + zonages protection) |
 | Eau — récupération EP | site | emprise toiture (Overpass/OSM) × pluie (Open-Meteo) | ✅ direct | **implémenté** |
+| Eau — piézométrie (profondeur nappe) | site | Hub'Eau (BRGM/ADES) | ✅ direct | **implémenté** (indicatif) |
 | Eau — infiltration, ruissellement | quartier | sol + imperméabilisation → indice | ✅ direct | qualitatif |
 | Urbanisme — compacité, orientations | quartier | emprises OSM (CES/COS/orientation) | ✅ direct | **implémenté** |
 | Urbanisme — îlot de fraîcheur, confort ESP | quartier | heuristique densité+hauteur (qualitatif) | ✅ direct | **implémenté** (qualitatif) |
 | Réglementaire — zonage PLU, SUP, risques | site | API Carto GPU (IGN) + Géorisques (BRGM) | ✅ direct | **implémenté** |
+| Mobilités — cyclable, transport en commun | quartier | Overpass (OSM) | ✅ direct | **implémenté** |
 
 ### Trois familles, à traiter dans cet ordre
 
@@ -289,6 +291,56 @@ Vérifié sur le **point précis**, pas sur l'ensemble du rayon "quartier" :
 une zone protégée qui commence juste à côté du point recherché n'apparaîtra
 pas. Pour une vérification exhaustive dans un rayon, il faudrait interroger
 avec un polygone plutôt qu'un point (raffinement possible plus tard).
+
+## Extension Eau — piézométrie (Hub'Eau)
+
+Le module Eau interroge maintenant l'**API Piézométrie de Hub'Eau** (BRGM,
+données ADES) pour donner une vraie mesure de profondeur de nappe, plutôt que
+l'indice qualitatif laissé en placeholder depuis le début du projet.
+
+Recherche des piézomètres dans un rayon de **15 km** (les piézomètres sont
+rares — quelques milliers en France — un rayon serré ne trouverait souvent
+rien), garde le plus proche par distance réelle, puis récupère sa dernière
+mesure de profondeur de nappe. **Ce n'est jamais une mesure sur site** : la
+distance au piézomètre le plus proche est affichée à chaque fois, pour que la
+donnée soit lue comme indicative (première lecture infiltration/fondations),
+pas comme une étude géotechnique.
+
+## Module Réseaux (chaleur urbaine) — non implémenté, accès API à clarifier
+
+L'intégration de **France Chaleur Urbaine** (réseaux de chaleur/froid) prévue
+dans la feuille de route n'a pas été codée : leur dépôt GitHub mentionne une
+étape "récupérer les API Keys", ce qui suggère un accès nécessitant une
+inscription — contrairement à toutes les autres sources de ce projet
+(zéro configuration, appel direct navigateur). Je n'ai pas voulu écrire du
+code sur une hypothèse d'accès non vérifiée. À investiguer : contacter
+France Chaleur Urbaine pour confirmer les modalités d'accès à leur API
+publique, ou se limiter à afficher un lien vers leur outil externe
+(`france-chaleur-urbaine.beta.gouv.fr`) plutôt qu'une intégration native.
+
+## Module Mobilités
+
+`src/modules/mobilites/` — infrastructure cyclable (aménagée/partagée/en
+projet) et transport en commun (arrêts + lignes). Scope `"quartier"`, rayon
+minimal de 300 m en cadrage Parcelle (l'infra cyclable/TC n'a de sens qu'à
+l'échelle du voisinage).
+
+- **Cyclable** : Overpass, classification aménagée (piste/site propre) vs
+  partagée (bande, voie mixte) vs en projet. Densité calculée (km/km²) comme
+  indicateur réel, pas un indice qualitatif inventé.
+- **Transport en commun** : arrêts (bus/tram/métro-train) et lignes (nom,
+  numéro) via les relations OSM `route=*`. Les tracés précis des lignes ne
+  sont pas affichés (seuls arrêts + identité de ligne), pour rester léger.
+- **Strava exclu volontairement** : la heatmap globale exige un compte
+  connecté et ses CGU interdisent la réutilisation hors de leurs produits ;
+  les données individuelles demandent un OAuth par utilisateur ; Strava Metro
+  est réservé aux collectivités partenaires. Rien d'intégrable proprement
+  dans un outil diffusé.
+- **Limite assumée sur "en projet"** : contrairement au reste du projet, il
+  n'existe pas de source nationale unifiée pour les tracés cyclables en
+  projet des métropoles françaises. La catégorie dépend entièrement du
+  remplissage communautaire OSM — une absence ne signifie pas qu'aucun projet
+  n'existe.
 
 ## Module Réglementaire
 

@@ -36,6 +36,7 @@ import { natureModule } from "./modules/nature";
 import { urbanismeModule } from "./modules/urbanisme";
 import { soleilModule } from "./modules/soleil";
 import { reglementaireModule } from "./modules/reglementaire";
+import { mobilitesModule } from "./modules/mobilites";
 registerModule(climatModule); // scope "site"
 registerModule(ventModule); // scope "site"
 registerModule(eauModule); // scope "site" (bâtiment, indépendant du rayon quartier)
@@ -43,6 +44,7 @@ registerModule(reglementaireModule); // scope "site" (zonage/SUP/risques propres
 registerModule(natureModule); // scope "quartier"
 registerModule(urbanismeModule); // scope "quartier"
 registerModule(soleilModule); // scope "quartier" (masques bâtis + héliodon 3D)
+registerModule(mobilitesModule); // scope "quartier"
 
 // --- Références DOM ----------------------------------------------------------
 const form = document.getElementById("search-form") as HTMLFormElement;

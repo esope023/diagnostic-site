@@ -1,6 +1,6 @@
 // Calculs eau : sélection du bâtiment du site, surface de toiture, potentiel
 // de récupération d'eau pluviale. Pur, sans I/O.
-import type { EauRaw } from "./fetch";
+import type { EauRaw, PiezoRaw } from "./fetch";
 import type { SiteContext } from "../../core/types";
 import { polygonAreaM2, pointInPolygon, centroid, distanceMeters } from "../../core/geo";
 
@@ -18,6 +18,8 @@ export interface EauResult {
   annualVolumeL: number | null;
   /** Volume mensuel récupérable (litres). */
   monthlyVolumeL: number[];
+  piezo: PiezoRaw | null;
+  piezoFetchFailed: boolean;
 }
 
 function pickBuilding(
@@ -60,6 +62,8 @@ export function computeEau(raw: EauRaw, ctx: SiteContext): EauResult {
     monthlyPrecipMm: raw.monthlyPrecip.map((v) => Math.round(v * 10) / 10),
     annualVolumeL,
     monthlyVolumeL,
+    piezo: raw.piezo,
+    piezoFetchFailed: raw.piezoFetchFailed,
   };
 }
 

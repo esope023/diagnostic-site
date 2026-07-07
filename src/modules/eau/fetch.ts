@@ -1,8 +1,10 @@
-// Récupération : emprise bâtie (Overpass/OSM) autour du point, et
-// précipitations (Open-Meteo). Les deux sources sont indépendantes ; si le
-// bâtiment n'est pas trouvé dans OSM, le module dégrade proprement (voir compute.ts).
+// Récupération : emprise bâtie (Overpass/OSM) autour du point, précipitations
+// (Open-Meteo), et piézométrie de la nappe la plus proche (Hub'Eau). Chaque
+// source est indépendante ; si l'une échoue, le module dégrade proprement
+// (voir compute.ts).
 import { fetchJson } from "../../api/client";
-import { OVERPASS, OPEN_METEO } from "../../api/endpoints";
+import { OVERPASS, OPEN_METEO, hubeauStations, hubeauDerniereMesure } from "../../api/endpoints";
+import { bboxAroundMeters, distanceMeters } from "../../core/geo";
 import type { SiteContext } from "../../core/types";
 import type { LatLon } from "../../core/geo";
 
@@ -16,15 +18,30 @@ interface OverpassResponse {
   elements: OverpassWay[];
 }
 
+export interface PiezoRaw {
+  codeBss: string;
+  nomCommune: string | null;
+  distanceM: number;
+  profondeurNappeM: number | null;
+  dateMesure: string | null;
+}
+
 export interface EauRaw {
   /** Polygones des bâtiments trouvés à proximité (peut être vide). */
   buildings: LatLon[][];
   /** Précipitations mensuelles moyennes (mm), 12 valeurs, normales 1991-2020. */
   monthlyPrecip: number[];
   annualPrecip: number;
+  /** Piézomètre le plus proche avec sa dernière mesure, null si aucun trouvé. */
+  piezo: PiezoRaw | null;
+  piezoFetchFailed: boolean;
 }
 
 const SEARCH_RADIUS_M = 40;
+/** Les piézomètres sont rares (quelques milliers en France) : rayon large
+ * nécessaire pour espérer en trouver un — ce n'est donc jamais une mesure
+ * "sur site", juste l'indication la plus proche disponible. */
+const PIEZO_SEARCH_RADIUS_M = 15_000;
 
 async function fetchBuildings(ctx: SiteContext): Promise<LatLon[][]> {
   const query = `
@@ -73,7 +90,78 @@ async function fetchPrecip(ctx: SiteContext): Promise<{ monthly: number[]; annua
   return { monthly, annual };
 }
 
+interface StationsResponse {
+  data: {
+    code_bss: string;
+    nom_commune?: string;
+    x: number; // longitude
+    y: number; // latitude
+    date_fin_mesure?: string;
+  }[];
+}
+interface ChroniquesResponse {
+  data: { profondeur_nappe?: number; date_mesure?: string }[];
+}
+
+async function fetchPiezo(ctx: SiteContext): Promise<{ piezo: PiezoRaw | null; fetchFailed: boolean }> {
+  try {
+    const bbox = bboxAroundMeters(ctx.lat, ctx.lon, PIEZO_SEARCH_RADIUS_M);
+    const stationsData = await fetchJson<StationsResponse>(hubeauStations(bbox), {
+      cacheKey: `hubeau:stations-${PIEZO_SEARCH_RADIUS_M}m`,
+      ttlMs: 30 * 24 * 60 * 60 * 1000,
+      timeoutMs: 15_000,
+      retries: 1,
+    });
+
+    if (!stationsData.data || stationsData.data.length === 0) {
+      return { piezo: null, fetchFailed: false }; // vraiment aucun piézomètre à proximité
+    }
+
+    const site = { lat: ctx.lat, lon: ctx.lon };
+    let nearest = stationsData.data[0];
+    let nearestDist = distanceMeters(site, { lat: nearest.y, lon: nearest.x });
+    for (const s of stationsData.data.slice(1)) {
+      const d = distanceMeters(site, { lat: s.y, lon: s.x });
+      if (d < nearestDist) {
+        nearest = s;
+        nearestDist = d;
+      }
+    }
+
+    const chroniques = await fetchJson<ChroniquesResponse>(hubeauDerniereMesure(nearest.code_bss), {
+      cacheKey: `hubeau:derniere-mesure-${nearest.code_bss}`,
+      ttlMs: 7 * 24 * 60 * 60 * 1000, // les mesures évoluent, cache plus court
+      timeoutMs: 15_000,
+      retries: 1,
+    });
+    const derniere = chroniques.data?.[0];
+
+    return {
+      piezo: {
+        codeBss: nearest.code_bss,
+        nomCommune: nearest.nom_commune ?? null,
+        distanceM: Math.round(nearestDist),
+        profondeurNappeM: derniere?.profondeur_nappe ?? null,
+        dateMesure: derniere?.date_mesure ?? null,
+      },
+      fetchFailed: false,
+    };
+  } catch {
+    return { piezo: null, fetchFailed: true };
+  }
+}
+
 export async function fetchEau(ctx: SiteContext): Promise<EauRaw> {
-  const [buildings, precip] = await Promise.all([fetchBuildings(ctx), fetchPrecip(ctx)]);
-  return { buildings, monthlyPrecip: precip.monthly, annualPrecip: precip.annual };
+  const [buildings, precip, piezoResult] = await Promise.all([
+    fetchBuildings(ctx),
+    fetchPrecip(ctx),
+    fetchPiezo(ctx),
+  ]);
+  return {
+    buildings,
+    monthlyPrecip: precip.monthly,
+    annualPrecip: precip.annual,
+    piezo: piezoResult.piezo,
+    piezoFetchFailed: piezoResult.fetchFailed,
+  };
 }

@@ -172,3 +172,26 @@ export const APICARTO_NATURE_BASE = "https://apicarto.ign.fr/api/nature";
 export function natureLayerUrl(layer: string, geom: object): string {
   return `${APICARTO_NATURE_BASE}/${layer}?geom=${encodeURIComponent(JSON.stringify(geom))}`;
 }
+
+/**
+ * Hub'Eau — API Piézométrie (BRGM/ADES). Sans clé, REST JSON. Recherche des
+ * piézomètres par bbox, puis dernière mesure via chroniques (tri desc, size=1).
+ * size=100 : l'API pagine (souvent 40+ stations dans un rayon de 15 km en
+ * zone urbaine) et ne trie pas par distance — une page trop petite peut faire
+ * rater une station plus proche et active au profit d'une plus lointaine et
+ * à l'arrêt depuis des décennies (constaté en test).
+ */
+export const HUBEAU_PIEZO_BASE = "https://hubeau.eaufrance.fr/api/v1/niveaux_nappes";
+
+export function hubeauStations(bbox: {
+  minLat: number;
+  minLon: number;
+  maxLat: number;
+  maxLon: number;
+}): string {
+  const { minLat, minLon, maxLat, maxLon } = bbox;
+  return `${HUBEAU_PIEZO_BASE}/stations?bbox=${minLon},${minLat},${maxLon},${maxLat}&size=100&format=json`;
+}
+export function hubeauDerniereMesure(codeBss: string): string {
+  return `${HUBEAU_PIEZO_BASE}/chroniques?code_bss=${encodeURIComponent(codeBss)}&sort=desc&size=1&format=json`;
+}

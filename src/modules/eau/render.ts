@@ -12,6 +12,20 @@ function indicator(label: string, value: string): string {
 export function renderEau(el: HTMLElement, r: EauResult): void {
   const hasRoof = r.roofAreaM2 !== null;
 
+  const piezoBlock = r.piezoFetchFailed
+    ? `<p class="error">Service Hub'Eau (piézométrie) indisponible pour le moment.</p>`
+    : r.piezo === null
+      ? `<p class="module-note">Aucun piézomètre recensé dans un rayon de 15 km — pas de donnée
+         de nappe disponible pour ce site.</p>`
+      : `<p>Piézomètre le plus proche : <strong>${r.piezo.nomCommune ?? r.piezo.codeBss}</strong>
+         (à ${(r.piezo.distanceM / 1000).toFixed(1)} km).
+         ${
+           r.piezo.profondeurNappeM !== null
+             ? `Profondeur de la nappe : <strong>${r.piezo.profondeurNappeM.toFixed(1)} m</strong>
+                (mesure du ${r.piezo.dateMesure ?? "n.d."}).`
+             : "Dernière mesure non disponible."
+         }</p>`;
+
   el.innerHTML = `
     <div class="indicators">
       ${indicator("Surface de toiture", hasRoof ? `${r.roofAreaM2} m²` : "n.d.")}
@@ -19,6 +33,10 @@ export function renderEau(el: HTMLElement, r: EauResult): void {
       ${indicator(
         "Volume récupérable / an",
         hasRoof ? `${(r.annualVolumeL! / 1000).toFixed(1)} m³` : "n.d.",
+      )}
+      ${indicator(
+        "Profondeur nappe (indicative)",
+        r.piezo?.profondeurNappeM != null ? `${r.piezo.profondeurNappeM.toFixed(1)} m` : "n.d.",
       )}
     </div>
     ${
@@ -34,6 +52,14 @@ export function renderEau(el: HTMLElement, r: EauResult): void {
     (${RUNOFF_COEFFICIENT}) × rendement de collecte (${COLLECTION_EFFICIENCY}).
     C'est un ordre de grandeur, pas un dimensionnement de cuve — l'emprise de
     toiture réelle peut différer du contour cadastré dans OSM.</p>
+
+    <h3 class="module-subtitle">Nappe souterraine (piézométrie)</h3>
+    ${piezoBlock}
+    <p class="module-note">Source : Hub'Eau (BRGM/ADES). Piézomètre le plus proche dans un
+    rayon de recherche de 15 km — les piézomètres sont rares, ce n'est jamais une mesure
+    sur site, seulement l'indication disponible la plus proche. Utile pour une première
+    lecture (infiltration, risque de nappe affleurante, fondations), pas pour une étude
+    géotechnique.</p>
   `;
 
   if (hasRoof) {

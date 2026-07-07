@@ -99,6 +99,15 @@ export function bboxAroundMeters(
   return { minLat: lat - dLat, maxLat: lat + dLat, minLon: lon - dLon, maxLon: lon + dLon };
 }
 
+/** Longueur d'une polyligne (mètres), somme des segments successifs. */
+export function lineLengthM(coords: LatLon[]): number {
+  let total = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    total += distanceMeters(coords[i], coords[i + 1]);
+  }
+  return total;
+}
+
 /** Test point-dans-polygone (ray casting). Fonctionne en lat/lon (approx locale). */
 export function pointInPolygon(point: LatLon, coords: LatLon[]): boolean {
   let inside = false;
