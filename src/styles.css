@@ -61,6 +61,38 @@ body {
 .chart-box { position: relative; height: 260px; margin-bottom: 14px; }
 .module-subtitle { font-size: 0.9rem; margin: 16px 0 8px; color: var(--ink); }
 .reg-list { margin: 4px 0 12px; padding-left: 20px; font-size: 0.85rem; line-height: 1.7; }
+
+/* --- Synthèse des enjeux ------------------------------------------------- */
+.synthese-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 20px; margin: 0 16px 16px;
+}
+.synthese-card h2 { margin: 0 0 6px; font-size: 1.15rem; }
+.synthese-disclaimer { color: var(--muted); font-size: 0.82rem; margin: 0 0 14px; }
+.enjeux-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.enjeu-card {
+  border-radius: 10px; padding: 12px 14px; border-left: 5px solid var(--border);
+  background: #f7f9fa;
+}
+.enjeu-card.niveau-determinant { border-left-color: #c0392b; background: #fdf1ef; }
+.enjeu-card.niveau-important { border-left-color: #e67e22; background: #fdf5ec; }
+.enjeu-card.niveau-surveiller { border-left-color: #7f8c8d; background: #f4f5f5; }
+.enjeu-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.enjeu-header h3 { margin: 0; font-size: 0.95rem; }
+.enjeu-niveau {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+  font-weight: 700; color: var(--muted);
+}
+.enjeu-card.niveau-determinant .enjeu-niveau { color: #c0392b; }
+.enjeu-card.niveau-important .enjeu-niveau { color: #e67e22; }
+.enjeu-signaux { margin: 0 0 8px; padding-left: 18px; font-size: 0.82rem; line-height: 1.6; }
+.signal-source { color: var(--muted); font-size: 0.75rem; }
+.enjeu-leviers summary { cursor: pointer; font-size: 0.82rem; color: var(--accent); }
+.enjeu-leviers ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.82rem; line-height: 1.6; }
+.synthese-nonevalue { color: var(--muted); font-size: 0.78rem; margin-top: 12px; }
 .projections-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
 @media (max-width: 520px) { .projections-grid { grid-template-columns: 1fr; } }
 .projection-card {

@@ -17,6 +17,8 @@ import {
 } from "./core/module-registry";
 import { initMap, focusSite, updateAnalysisCircle, getMapElement } from "./map/map";
 import { generateReport } from "./export/report";
+import { synthesizeFromRegistry, syntheseToExportBlock } from "./synthese";
+import { renderSynthese } from "./synthese/render";
 
 // --- Correctif des icônes Leaflet sous bundler ------------------------------
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -52,6 +54,7 @@ const input = document.getElementById("search-input") as HTMLInputElement;
 const radiusSelect = document.getElementById("radius-select") as HTMLSelectElement;
 const modulesEl = document.getElementById("modules") as HTMLElement;
 const siteInfoEl = document.getElementById("site-info") as HTMLElement;
+const syntheseEl = document.getElementById("synthese") as HTMLElement;
 const exportBtn = document.getElementById("export-btn") as HTMLButtonElement;
 const mapContainer = document.getElementById("map") as HTMLElement;
 
@@ -80,6 +83,7 @@ form.addEventListener("submit", async (e) => {
   moduleBodies.clear();
   modulesEl.insertAdjacentHTML("beforeend", `<p class="placeholder">Géocodage…</p>`);
   exportBtn.disabled = true;
+  syntheseEl.hidden = true;
   clearResults();
 
   const radiusM = radiusValueToMeters(radiusSelect.value);
@@ -96,6 +100,7 @@ form.addEventListener("submit", async (e) => {
 
   modulesEl.innerHTML = "";
   await runModules(ctx);
+  refreshSynthese();
   exportBtn.disabled = false;
 });
 
@@ -106,7 +111,16 @@ radiusSelect.addEventListener("change", async () => {
   updateAnalysisCircle(currentCtx);
   updateSiteInfo(currentCtx);
   await runModules(currentCtx, (m) => m.scope === "quartier");
+  refreshSynthese();
 });
+
+/** Recalcule et affiche la synthèse des enjeux à partir des résultats déjà
+ * en registre — ne relance aucun fetch, pure lecture croisée. */
+function refreshSynthese(): void {
+  const result = synthesizeFromRegistry();
+  renderSynthese(syntheseEl, result);
+  syntheseEl.hidden = false;
+}
 
 function updateSiteInfo(ctx: SiteContext): void {
   const alt = ctx.altitude !== null ? `${ctx.altitude} m` : "n.d.";
@@ -149,7 +163,8 @@ exportBtn.addEventListener("click", async () => {
   exportBtn.disabled = true;
   exportBtn.textContent = "Génération…";
   try {
-    const blocks = collectExportBlocks(currentCtx);
+    const syntheseBlock = syntheseToExportBlock(synthesizeFromRegistry());
+    const blocks = [syntheseBlock, ...collectExportBlocks(currentCtx)];
     await generateReport(blocks, currentCtx, getMapElement());
   } finally {
     exportBtn.textContent = "Exporter le rapport (PDF)";

@@ -99,6 +99,43 @@ Pour créer `soleil`, `vent`, `eau`… :
 Rien d'autre à modifier : l'UI et l'export prennent le nouveau module en compte
 automatiquement.
 
+## Synthèse des enjeux (`src/synthese/`)
+
+Moteur de **règles croisées explicites** qui transforme les huit modules
+d'un empilement d'indicateurs en un diagnostic hiérarchisé. Affiché en tête
+de page (au-dessus de la carte) et en premier bloc du rapport PDF.
+
+Principe, à respecter pour toute règle ajoutée :
+
+- Une règle = une fonction pure (`src/synthese/rules.ts`) qui lit les
+  `Result` déjà calculés par les modules (via `getResult()` du registre —
+  aucun fetch, aucune dépendance réseau) et produit des **signaux** : un
+  signal = un indicateur + un seuil écrit en constante commentée + un poids
+  (1 ou 2). Le score de l'enjeu = somme des poids ; le niveau (Déterminant /
+  Important / À surveiller) découle du score par des bornes explicites.
+- **Chaque signal affiché porte sa valeur et son module d'origine** — le
+  praticien peut toujours remonter au chiffre exact qui fonde l'enjeu.
+  Aucune pondération cachée, aucun modèle entraîné, aucune magie.
+- **Donnée manquante = dit explicitement** ("non évalué : module X non
+  disponible"), jamais silencieux et jamais traité comme "risque nul".
+- La hiérarchie produite est **indicative** : c'est une aide à la lecture
+  croisée, pas un jugement automatique. Le disclaimer est affiché à l'écran
+  et répété dans l'export.
+
+Huit règles actuellement câblées : surchauffe/îlot de chaleur, accès
+solaire/potentiel énergétique, eau pluviale/inondation, sols/fondations
+(RGA), vent/confort extérieur, biodiversité/protections, cadre réglementaire,
+mobilité décarbonée. Pour ajouter une règle : écrire une fonction
+`(i: SyntheseInput) => Enjeu` dans `rules.ts`, l'ajouter au tableau `REGLES`
+en bas du fichier — rien d'autre à toucher (le rendu écran et l'export la
+prennent automatiquement en compte).
+
+**Point de vigilance en cas d'évolution d'un module** : les règles lisent
+des noms de champs précis sur les `Result` de chaque module (ex.
+`i.urbanisme.cesPct`, `i.soleil.svf`). Si un module renomme un champ, le
+TypeScript du moteur de règles ne compilera plus — c'est voulu (mieux vaut
+une erreur de build qu'une règle qui lit silencieusement `undefined`).
+
 ## Sources de données par module
 
 | Module | Portée | API / source | CORS navigateur | Statut |

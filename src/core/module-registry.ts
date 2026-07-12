@@ -60,6 +60,13 @@ export function collectExportBlocks(ctx: SiteContext): ExportBlock[] {
   return blocks;
 }
 
+/** Accès typé au résultat d'un module (pour la synthèse des enjeux, qui
+ * consomme les résultats des autres modules sans refetcher). `undefined` si
+ * le module n'a pas tourné ou a échoué — la synthèse doit le gérer. */
+export function getResult<T = unknown>(id: string): T | undefined {
+  return lastResults.get(id)?.result as T | undefined;
+}
+
 export function clearResults(): void {
   lastResults.clear();
 }
