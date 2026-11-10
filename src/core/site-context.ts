@@ -1,6 +1,6 @@
 // Construit le SiteContext partagé : géocodage BAN + altitude RGE ALTI + parcelle cadastrale.
 import type { SiteContext } from "./types";
-import { geocode } from "./geocode";
+import { geocode, type GeocodeResult } from "./geocode";
 import { fetchJson, roundCoord } from "../api/client";
 import { IGN_ALTI } from "../api/endpoints";
 import { fetchParcelle } from "./cadastre";
@@ -39,8 +39,10 @@ function guessTimezone(): string {
 export async function buildSiteContext(
   query: string,
   radiusM: number | null,
+  /** Adresse déjà choisie dans les suggestions : évite un second géocodage. */
+  preset?: GeocodeResult | null,
 ): Promise<SiteContext | null> {
-  const geo = await geocode(query);
+  const geo = preset ?? (await geocode(query));
   if (!geo) return null;
 
   const [altitude, parcelle] = await Promise.all([

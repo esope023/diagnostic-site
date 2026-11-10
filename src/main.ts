@@ -19,6 +19,7 @@ import { initMap, focusSite, updateAnalysisCircle, getMapElement } from "./map/m
 import { generateReport } from "./export/report";
 import { synthesizeFromRegistry, syntheseToExportBlock } from "./synthese";
 import { renderSynthese } from "./synthese/render";
+import { attachAddressAutocomplete } from "./ui/address-autocomplete";
 
 // --- Correctif des icônes Leaflet sous bundler ------------------------------
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -64,6 +65,12 @@ const moduleBodies = new Map<string, HTMLElement>();
 
 initMap(mapContainer);
 
+// --- Autocomplétion de l'adresse ---------------------------------------------
+const addressAutocomplete = attachAddressAutocomplete(input, {
+  // Oriente les suggestions vers le dernier site analysé.
+  near: () => (currentCtx ? { lat: currentCtx.lat, lon: currentCtx.lon } : null),
+});
+
 // --- Sélecteur de rayon (peuplé depuis la source unique RADIUS_PRESETS) ----
 for (const preset of RADIUS_PRESETS) {
   const opt = document.createElement("option");
@@ -78,6 +85,8 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const query = input.value.trim();
   if (!query) return;
+  const preset = addressAutocomplete.getSelection();
+  addressAutocomplete.close();
 
   modulesEl.innerHTML = "";
   moduleBodies.clear();
@@ -87,7 +96,7 @@ form.addEventListener("submit", async (e) => {
   clearResults();
 
   const radiusM = radiusValueToMeters(radiusSelect.value);
-  const ctx = await buildSiteContext(query, radiusM);
+  const ctx = await buildSiteContext(query, radiusM, preset);
   if (!ctx) {
     modulesEl.innerHTML = `<p class="error">Adresse introuvable.</p>`;
     return;
