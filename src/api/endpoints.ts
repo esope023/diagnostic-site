@@ -29,8 +29,10 @@ export const OPEN_METEO = {
   climate: "https://climate-api.open-meteo.com/v1/climate",
 };
 
-/** Base Adresse Nationale — géocodage FR. */
-export const BAN_SEARCH = "https://api-adresse.data.gouv.fr/search/";
+/** Base Adresse Nationale — géocodage FR, servi par la Géoplateforme IGN.
+ * Remplace api-adresse.data.gouv.fr (service transféré à l'IGN, ancien
+ * domaine voué à disparaître). Mêmes paramètres et même réponse GeoJSON. */
+export const BAN_SEARCH = "https://data.geopf.fr/geocodage/search";
 
 /** Service altimétrique Géoplateforme (RGE ALTI). */
 export const IGN_ALTI =
