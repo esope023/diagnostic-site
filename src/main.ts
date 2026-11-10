@@ -3,7 +3,6 @@
 // l'enregistrer ci-dessous, et déclarer sa portée ("site" ou "quartier").
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
-import L from "leaflet";
 
 import type { SiteContext } from "./core/types";
 import { buildSiteContext } from "./core/site-context";
@@ -20,16 +19,6 @@ import { generateReport } from "./export/report";
 import { synthesizeFromRegistry, syntheseToExportBlock } from "./synthese";
 import { renderSynthese } from "./synthese/render";
 import { attachAddressAutocomplete } from "./ui/address-autocomplete";
-
-// --- Correctif des icônes Leaflet sous bundler ------------------------------
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
-});
 
 // --- Enregistrement des modules ---------------------------------------------
 import { climatModule } from "./modules/climat";
@@ -139,33 +128,80 @@ function updateSiteInfo(ctx: SiteContext): void {
 }
 
 // --- Exécution des modules ---------------------------------------------------
+/** Au-delà, le module affiche « délai dépassé » ; s'il aboutit plus tard, son
+ * résultat remplace le message. Aucun module ne bloque plus les autres. */
+const MODULE_TIMEOUT_MS = 180_000;
+/** Identifiant de la dernière analyse lancée : une analyse dépassée n'écrit plus. */
+let runId = 0;
+
+type AnyMod = ReturnType<typeof getModules>[number];
+
 async function runModules(
   ctx: SiteContext,
-  filter: (m: ReturnType<typeof getModules>[number]) => boolean = () => true,
+  filter: (m: AnyMod) => boolean = () => true,
 ): Promise<void> {
-  for (const mod of getModules()) {
-    if (!filter(mod)) continue;
+  const id = ++runId;
+  const runs = getModules()
+    .filter(filter)
+    .map((mod) => runOneModule(mod, ctx, id));
+  await Promise.all(runs);
+}
 
-    let body = moduleBodies.get(mod.id);
-    if (!body) {
-      body = createModuleCard(mod.id, `${mod.icon ?? ""} ${mod.label}`);
-      moduleBodies.set(mod.id, body);
-    }
-    const card = body.closest<HTMLElement>(".module-card")!;
-
-    await runModule(mod, body, ctx, {
-      onLoading: () => {
-        setCardStatus(card, "loading");
-        body!.innerHTML = `<p class="placeholder">Chargement…</p>`;
-      },
-      onError: (message) => {
-        body!.innerHTML = `<p class="error">Erreur : ${message}</p>`;
-      },
-    });
-    // Un module peut afficher lui-même une donnée indisponible sans lever
-    // d'erreur : on le signale dans l'en-tête, visible même replié.
-    setCardStatus(card, body.querySelector(".error") ? "warning" : "ok");
+/** Lance un module dans sa carte, en parallèle des autres, avec délai maximal. */
+async function runOneModule(mod: AnyMod, ctx: SiteContext, id: number): Promise<void> {
+  let body = moduleBodies.get(mod.id);
+  if (!body) {
+    body = createModuleCard(mod.id, `${mod.icon ?? ""} ${mod.label}`);
+    moduleBodies.set(mod.id, body);
   }
+  const card = body.closest<HTMLElement>(".module-card")!;
+
+  // Chaque exécution rend dans un emplacement neuf : si une analyse plus
+  // récente le remplace, le rendu tardif de l'ancienne tombe hors de la page.
+  const slot = document.createElement("div");
+  body.replaceChildren(slot);
+  const isCurrent = () => id === runId && slot.isConnected;
+
+  let timedOut = false;
+  setCardStatus(card, "loading");
+  const done = runModule(mod, slot, ctx, {
+    onLoading: () => {
+      slot.innerHTML = `<p class="placeholder">Chargement…</p>`;
+    },
+    onError: (message) => {
+      slot.innerHTML = `<p class="error">Erreur : ${message}</p>`;
+    },
+  }).then(() => {
+    if (!isCurrent()) return;
+    setCardStatus(card, slot.querySelector(".error") ? "warning" : "ok");
+    // Un module arrivé après le délai met la synthèse à jour.
+    if (timedOut) refreshSynthese();
+  });
+
+  const timeout = new Promise<"timeout">((r) => setTimeout(() => r("timeout"), MODULE_TIMEOUT_MS));
+  const outcome = await Promise.race([done.then(() => "done" as const), timeout]);
+  if (outcome === "timeout" && isCurrent()) {
+    timedOut = true;
+    slot.innerHTML = `
+      <p class="error">Délai dépassé : une source n'a pas répondu en
+      ${MODULE_TIMEOUT_MS / 60_000} minutes. Ce n'est pas une absence de donnée.
+      Le résultat s'affichera ici s'il finit par arriver.</p>`;
+    setCardStatus(card, "warning");
+  }
+  if (isCurrent() && card.dataset.status === "warning") addRetryButton(slot, mod, ctx);
+}
+
+function addRetryButton(slot: HTMLElement, mod: AnyMod, ctx: SiteContext): void {
+  if (slot.querySelector(".module-retry")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "module-retry";
+  btn.textContent = "Réessayer ce module";
+  btn.addEventListener("click", async () => {
+    await runOneModule(mod, ctx, runId);
+    refreshSynthese();
+  });
+  slot.appendChild(btn);
 }
 
 // --- Cartes de module dépliables ---------------------------------------------

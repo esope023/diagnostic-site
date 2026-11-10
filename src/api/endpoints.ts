@@ -53,12 +53,10 @@ export const IGN_LAYERS = {
 /** Overpass (OSM) — trame verte/bleue, morphologie urbaine. */
 export const OVERPASS = "https://overpass-api.de/api/interpreter";
 
-/** Serveurs Overpass de repli, essayés dans l'ordre si le principal échoue
- * (surcharge fréquente d'overpass-api.de). Mêmes données OSM, même API. */
-export const OVERPASS_MIRRORS = [
-  "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-];
+/** Miroir Overpass interrogé en parallèle du serveur principal. Testé le
+ * 11/11/2026 : maps.mail.ru répond (CORS ouvert) ; private.coffee et
+ * kumi.systems ne répondaient plus (délai dépassé), retirés. */
+export const OVERPASS_MIRRORS = ["https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
 
 /**
  * WMS Géoplateforme (GetMap) — image orthophoto centrée sur un point, utilisée
@@ -99,7 +97,9 @@ export function ignWfsParcelles(bbox: {
   return (
     `https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
     `&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle&OUTPUTFORMAT=application/json` +
-    `&SRSNAME=EPSG:4326&BBOX=${minLat},${minLon},${maxLat},${maxLon},EPSG:4326`
+    `&SRSNAME=EPSG:4326` +
+    // Ordre lon,lat avec « EPSG:4326 » (même constat que pour les bâtiments).
+    `&BBOX=${minLon},${minLat},${maxLon},${maxLat},EPSG:4326`
   );
 }
 
@@ -122,7 +122,8 @@ export function ignWfsBatiments(bbox: {
     `&TYPENAMES=BDTOPO_V3:batiment&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326` +
     // Plafond explicite : le service tronque sinon à sa limite par défaut.
     `&COUNT=5000` +
-    `&BBOX=${minLat},${minLon},${maxLat},${maxLon},EPSG:4326`
+    // Ordre lon,lat avec « EPSG:4326 » (lat,lon renvoie 0 bâtiment — vérifié le 11/11/2026).
+    `&BBOX=${minLon},${minLat},${maxLon},${maxLat},EPSG:4326`
   );
 }
 
@@ -149,11 +150,6 @@ export function gpuSup(layer: "assiette-sup-s" | "assiette-sup-l" | "assiette-su
   return `${APICARTO_GPU_BASE}/${layer}?geom=${encodeURIComponent(JSON.stringify(geom))}`;
 }
 
-/** API du Géoportail de l'Urbanisme — détails d'un document (lien règlement PDF). */
-export function gpuDocumentDetails(partition: string): string {
-  return `https://www.geoportail-urbanisme.gouv.fr/api/document/${partition}/details`;
-}
-
 /**
  * API Géorisques (BRGM). Endpoints confirmés : /rga (fiable, dédié), et
  * /resultats_rapport_risque (synthèse multi-risques en un appel — pratique
@@ -169,7 +165,9 @@ export function georisquesSynthese(lat: number, lon: number): string {
   return `${GEORISQUES_BASE}/resultats_rapport_risque?latlon=${lon},${lat}`;
 }
 export function georisquesCatnat(lat: number, lon: number, rayonM = 1000): string {
-  return `${GEORISQUES_BASE}/gaspar/catnat?longitude=${lon}&latitude=${lat}&rayon=${rayonM}&page_size=50`;
+  // Paramètres vérifiés le 11/11/2026 : latlon=lon,lat + rayon (longitude/latitude → 400).
+  // Renvoie les arrêtés des communes situées dans le rayon.
+  return `${GEORISQUES_BASE}/gaspar/catnat?latlon=${lon},${lat}&rayon=${rayonM}&page_size=100`;
 }
 
 /**

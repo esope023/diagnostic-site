@@ -5,6 +5,7 @@
 import { fetchJson } from "../../api/client";
 import { OVERPASS, OPEN_METEO, hubeauStations, hubeauDerniereMesure } from "../../api/endpoints";
 import { bboxAroundMeters, distanceMeters } from "../../core/geo";
+import { fetchBdTopoBuildings } from "../../core/bdtopo-buildings";
 import type { SiteContext } from "../../core/types";
 import type { LatLon } from "../../core/geo";
 
@@ -43,7 +44,14 @@ const SEARCH_RADIUS_M = 40;
  * "sur site", juste l'indication la plus proche disponible. */
 const PIEZO_SEARCH_RADIUS_M = 15_000;
 
+/** Emprises bâties autour du point : BD TOPO (rapide, fiable) puis repli OSM. */
 async function fetchBuildings(ctx: SiteContext): Promise<LatLon[][]> {
+  const bdtopo = await fetchBdTopoBuildings(ctx.lat, ctx.lon, SEARCH_RADIUS_M);
+  if (bdtopo && bdtopo.length > 0) return bdtopo.map((b) => b.polygon);
+  return fetchOsmBuildingPolygons(ctx);
+}
+
+async function fetchOsmBuildingPolygons(ctx: SiteContext): Promise<LatLon[][]> {
   const query = `
     [out:json][timeout:25];
     way["building"](around:${SEARCH_RADIUS_M},${ctx.lat},${ctx.lon});

@@ -35,18 +35,18 @@ export const reglementaireModule: DiagnosticModule<ReglementaireRaw, Reglementai
       moduleId: "reglementaire",
       title: "Réglementaire",
       summary:
-        `${zonageStr}. ${result.supCount} servitude(s) d'utilité publique détectée(s), ` +
-        `exposition RGA ${result.rgaExposition ?? "n.d."}, ${result.catnatCount} arrêté(s) ` +
-        `de catastrophe naturelle recensé(s) à moins de 1 km.`,
+        `${zonageStr}. ${result.supCount ?? "n.d."} servitude(s) d'utilité publique détectée(s), ` +
+        `exposition RGA ${result.rgaExposition ?? "n.d."}, ${result.catnatCount ?? "n.d."} arrêté(s) ` +
+        `de catastrophe naturelle sur les communes à moins de 1 km.`,
       indicators: [
         { label: "Zonage", value: result.isRnu ? "RNU" : result.zonageLibelle ?? "n.d." },
-        { label: "Servitudes (SUP)", value: `${result.supCount}` },
+        { label: "Servitudes (SUP)", value: `${result.supCount ?? "n.d."}` },
         { label: "Exposition RGA", value: result.rgaExposition ?? "n.d." },
         {
-          label: "Risques signalés (Géorisques)",
-          value: result.risquesDisponibles ? `${result.risquesPresents.length}` : "n.d.",
+          label: "Risques existants à l'adresse (Géorisques)",
+          value: result.risquesDisponibles ? `${result.risquesAdresseCount}` : "n.d.",
         },
-        { label: "Arrêtés CatNat (1 km)", value: `${result.catnatCount}` },
+        { label: "Arrêtés CatNat (communes < 1 km)", value: `${result.catnatCount ?? "n.d."}` },
         ...(result.documentUrl ? [{ label: "Lien règlement", value: result.documentUrl }] : []),
       ],
       charts: [],

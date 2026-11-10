@@ -7,7 +7,6 @@ import {
   gpuZoneUrba,
   gpuMunicipality,
   gpuSup,
-  gpuDocumentDetails,
   georisquesRga,
   georisquesSynthese,
   georisquesCatnat,
@@ -41,6 +40,10 @@ export interface ZonageFeatureProps {
   typezone?: string;
   partition?: string;
   libelong?: string;
+  /** URL du règlement écrit (souvent avec l'ancre de la page de la zone). */
+  urlfic?: string | null;
+  /** Date de validité du document (AAAAMMJJ). */
+  datvalid?: string | null;
 }
 interface GpuFeatureCollection<P> {
   features: { properties: P }[];
@@ -77,26 +80,21 @@ async function fetchIsRnu(ctx: SiteContext): Promise<boolean | null> {
   }
 }
 
-async function fetchDocumentUrl(partition: string | undefined): Promise<string | null> {
-  if (!partition) return null;
-  try {
-    const url = gpuDocumentDetails(partition);
-    const data = await fetchJson<{ archiveUrl?: string; files?: { url: string; type?: string }[] }>(
-      url,
-      { cacheKey: "gpu:document-details", ttlMs: 60 * 24 * 60 * 60 * 1000, timeoutMs: 15_000 },
-    );
-    // Priorité à un fichier de règlement explicite, sinon l'archive complète.
-    const reglement = data.files?.find((f) => (f.type ?? "").toLowerCase().includes("reglement"));
-    return reglement?.url ?? data.archiveUrl ?? null;
-  } catch {
-    return null;
-  }
+/** Lien vers le règlement : fourni directement par API Carto (champ `urlfic`).
+ * L'ancienne route /api/document/{partition}/details du GPU répond 404. */
+function documentUrlFrom(zonage: ZonageFeatureProps | null): string | null {
+  const u = zonage?.urlfic;
+  return typeof u === "string" && /^https?:\/\//.test(u) ? u : null;
 }
 
 // --- Servitudes d'utilité publique -------------------------------------------
 export interface SupItem {
   categorie: string | null;
   libelle: string | null;
+  /** Nature de l'assiette, ex. « Périmètre des abords ». */
+  typeAssiette: string | null;
+  /** Identifiant d'assiette, pour dédoublonner. */
+  id: string | null;
 }
 
 interface GpuSupProps {
@@ -106,12 +104,14 @@ interface GpuSupProps {
   suptype?: string;
   nomsuplitt?: string;
   nomass?: string;
+  typeass?: string;
+  idass?: string;
 }
 
 async function fetchSupLayer(
   ctx: SiteContext,
   layer: "assiette-sup-s" | "assiette-sup-l" | "assiette-sup-p",
-): Promise<SupItem[]> {
+): Promise<SupItem[] | null> {
   try {
     const url = gpuSup(layer, sitePoint(ctx));
     const data = await fetchJson<GpuFeatureCollection<GpuSupProps>>(
@@ -123,20 +123,32 @@ async function fetchSupLayer(
       return {
         categorie: f.properties.suptype?.toUpperCase() ?? null,
         libelle: libelle !== null ? fixMojibake(libelle) : null,
+        typeAssiette: f.properties.typeass ? fixMojibake(f.properties.typeass) : null,
+        id: f.properties.idass ?? null,
       };
     });
   } catch {
-    return [];
+    return null; // échec ≠ « aucune servitude »
   }
 }
 
-async function fetchSup(ctx: SiteContext): Promise<SupItem[]> {
-  const [surf, lin, pct] = await Promise.all([
+/** null si aucune des trois couches n'a répondu. Doublons d'assiette retirés. */
+async function fetchSup(ctx: SiteContext): Promise<SupItem[] | null> {
+  const layers = await Promise.all([
     fetchSupLayer(ctx, "assiette-sup-s"),
     fetchSupLayer(ctx, "assiette-sup-l"),
     fetchSupLayer(ctx, "assiette-sup-p"),
   ]);
-  return [...surf, ...lin, ...pct];
+  if (layers.every((l) => l === null)) return null;
+  const seen = new Set<string>();
+  const items: SupItem[] = [];
+  for (const item of layers.flatMap((l) => l ?? [])) {
+    const key = item.id ?? `${item.categorie}|${item.libelle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(item);
+  }
+  return items;
 }
 
 // --- Géorisques ----------------------------------------------------------------
@@ -158,13 +170,20 @@ async function fetchRga(ctx: SiteContext): Promise<RgaResult | null> {
   }
 }
 
-/** Forme très défensive : la doc publique de cet endpoint est incomplète et son
- * comportement a été signalé instable par des utilisateurs tiers. On ne mise
- * rien sur sa structure au-delà de "certaines clés *peuvent* être présentes". */
-export type RisqueSyntheseRaw = Record<
-  string,
-  { present?: boolean; libelle?: string } | undefined
->;
+/** Réponse de /resultats_rapport_risque (vérifiée le 11/11/2026) : deux
+ * familles, chacune un objet { cléRisque: { present, libelle, statuts } }. */
+export interface RisqueSyntheseEntry {
+  present?: boolean;
+  libelle?: string;
+  libelleStatutCommune?: string | null;
+  libelleStatutAdresse?: string | null;
+}
+export interface RisqueSyntheseRaw {
+  risquesNaturels?: Record<string, RisqueSyntheseEntry | undefined>;
+  risquesTechnologiques?: Record<string, RisqueSyntheseEntry | undefined>;
+  /** Lien vers le rapport Géorisques complet pour cette adresse. */
+  url?: string;
+}
 
 async function fetchRisquesSynthese(ctx: SiteContext): Promise<RisqueSyntheseRaw | null> {
   try {
@@ -179,23 +198,30 @@ async function fetchRisquesSynthese(ctx: SiteContext): Promise<RisqueSyntheseRaw
   }
 }
 
+/** Champs réels de /gaspar/catnat (dates au format JJ/MM/AAAA). */
 export interface CatnatItem {
-  libelle?: string;
-  dateDebut?: string;
-  dateFin?: string;
+  libelle_risque_jo?: string;
+  date_debut_evt?: string;
+  date_fin_evt?: string;
+  date_publication_jo?: string;
+  libelle_commune?: string;
+}
+export interface CatnatRaw {
+  total: number;
+  items: CatnatItem[];
 }
 
-async function fetchCatnat(ctx: SiteContext): Promise<CatnatItem[]> {
+/** null en cas d'échec : ne jamais l'afficher comme « aucun arrêté ». */
+async function fetchCatnat(ctx: SiteContext): Promise<CatnatRaw | null> {
   try {
-    const data = await fetchJson<{ data?: CatnatItem[] }>(georisquesCatnat(ctx.lat, ctx.lon), {
-      cacheKey: "georisques:catnat",
-      ttlMs: 30 * 24 * 60 * 60 * 1000,
-      timeoutMs: 15_000,
-      retries: 1,
-    });
-    return data.data ?? [];
+    const data = await fetchJson<{ results?: number; data?: CatnatItem[] | null }>(
+      georisquesCatnat(ctx.lat, ctx.lon),
+      { cacheKey: "georisques:catnat", ttlMs: 30 * 24 * 60 * 60 * 1000, timeoutMs: 15_000, retries: 1 },
+    );
+    if (!Array.isArray(data.data)) return null;
+    return { total: data.results ?? data.data.length, items: data.data };
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -204,10 +230,10 @@ export interface ReglementaireRaw {
   zonage: ZonageFeatureProps | null;
   isRnu: boolean | null;
   documentUrl: string | null;
-  sup: SupItem[];
+  sup: SupItem[] | null;
   rga: RgaResult | null;
   risquesSynthese: RisqueSyntheseRaw | null;
-  catnat: CatnatItem[];
+  catnat: CatnatRaw | null;
   /** true si un souci technique a touché au moins une source (affiché, pas cause de blocage). */
   partialFailure: boolean;
 }
@@ -222,9 +248,10 @@ export async function fetchReglementaire(ctx: SiteContext): Promise<Reglementair
     fetchCatnat(ctx),
   ]);
 
-  const documentUrl = await fetchDocumentUrl(zonage?.partition);
+  const documentUrl = documentUrlFrom(zonage);
 
-  const partialFailure = zonage === null || rga === null || risquesSynthese === null;
+  const partialFailure =
+    zonage === null || rga === null || risquesSynthese === null || catnat === null || sup === null;
 
   return { zonage, isRnu, documentUrl, sup, rga, risquesSynthese, catnat, partialFailure };
 }

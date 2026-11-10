@@ -14,6 +14,20 @@ function ignLayer(def: { layer: string; format: string }): L.TileLayer {
 
 let map: L.Map | null = null;
 let marker: L.Marker | null = null;
+
+/** Repère du site : point plein cerclé et croix de visée, dessiné en CSS/SVG
+ * (pas d'image à charger, net à toutes les résolutions). */
+const SITE_ICON = L.divIcon({
+  className: "site-marker",
+  html: `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+    <line x1="18" y1="1" x2="18" y2="11" /><line x1="18" y1="25" x2="18" y2="35" />
+    <line x1="1" y1="18" x2="11" y2="18" /><line x1="25" y1="18" x2="35" y2="18" />
+    <circle cx="18" cy="18" r="7" class="ring" /><circle cx="18" cy="18" r="3" class="dot" />
+  </svg>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+  popupAnchor: [0, -16],
+});
 let analysisCircle: L.Circle | null = null;
 let parcelleLayer: L.Polygon | null = null;
 
@@ -32,7 +46,7 @@ export function focusSite(ctx: SiteContext): void {
   if (!map) return;
   map.setView([ctx.lat, ctx.lon], 17);
   if (marker) marker.remove();
-  marker = L.marker([ctx.lat, ctx.lon]).addTo(map).bindPopup(ctx.label).openPopup();
+  marker = L.marker([ctx.lat, ctx.lon], { icon: SITE_ICON, title: ctx.label }).addTo(map).bindPopup(ctx.label).openPopup();
   updateAnalysisCircle(ctx);
   updateParcelleLayer(ctx);
 }

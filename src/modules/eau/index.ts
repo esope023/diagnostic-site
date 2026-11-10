@@ -37,7 +37,7 @@ export const eauModule: DiagnosticModule<EauRaw, EauResult> = {
         (hasRoof
           ? `Toiture d'environ ${result.roofAreaM2} m² pour ${result.annualPrecipMm} mm/an ` +
             `de pluie : potentiel de récupération estimé à ${(result.annualVolumeL! / 1000).toFixed(1)} m³/an.`
-          : `Aucun bâtiment identifié dans OpenStreetMap à proximité : potentiel de ` +
+          : `Aucun bâtiment identifié (IGN BD TOPO / OpenStreetMap) à proximité : potentiel de ` +
             `récupération non estimable automatiquement (pluviométrie : ${result.annualPrecipMm} mm/an).`) +
         piezoStr,
       indicators: [
@@ -56,7 +56,7 @@ export const eauModule: DiagnosticModule<EauRaw, EauResult> = {
         ? [{ title: "Volume mensuel récupérable", config: volumeMensuelConfig(result) }]
         : [],
       notes: [
-        "Estimation récupération EP : surface de toiture (OpenStreetMap) × pluviométrie " +
+        "Estimation récupération EP : surface de toiture (emprise IGN BD TOPO, OpenStreetMap à défaut) × pluviométrie " +
           `(Open-Meteo, normales 1991-2020) × coefficient de ruissellement (${RUNOFF_COEFFICIENT}) ` +
           `× rendement de collecte (${COLLECTION_EFFICIENCY}).`,
         "Ordre de grandeur, pas un dimensionnement de cuve : l'emprise cadastrée dans " +

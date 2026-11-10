@@ -42,16 +42,15 @@ export function renderEau(el: HTMLElement, r: EauResult): void {
     ${
       hasRoof
         ? `<div class="chart-box"><canvas data-chart="vol"></canvas></div>`
-        : `<p class="error">Aucun bâtiment identifié dans OpenStreetMap à proximité
+        : `<p class="error">Aucun bâtiment identifié (IGN BD TOPO / OpenStreetMap) à proximité
            du point recherché : le potentiel de récupération ne peut pas être
-           estimé automatiquement. Vérifiez que le bâtiment est bien cadastré
-           dans OSM, ou affinez les coordonnées.</p>`
+           estimé automatiquement. Affinez l'adresse ou les coordonnées.</p>`
     }
-    <p class="module-note">Estimation : surface de toiture (OpenStreetMap) ×
+    <p class="module-note">Estimation : surface de toiture (emprise IGN BD TOPO, OpenStreetMap à défaut) ×
     pluviométrie (normales Open-Meteo 1991-2020) × coefficient de ruissellement
     (${RUNOFF_COEFFICIENT}) × rendement de collecte (${COLLECTION_EFFICIENCY}).
     C'est un ordre de grandeur, pas un dimensionnement de cuve — l'emprise de
-    toiture réelle peut différer du contour cadastré dans OSM.</p>
+    toiture réelle peut différer de l'emprise au sol cartographiée.</p>
 
     <h3 class="module-subtitle">Nappe souterraine (piézométrie)</h3>
     ${piezoBlock}

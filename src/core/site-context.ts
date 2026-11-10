@@ -6,7 +6,9 @@ import { IGN_ALTI } from "../api/endpoints";
 import { fetchParcelle } from "./cadastre";
 
 interface IgnAltiResponse {
-  elevations: { z: number }[] | { lat: number; lon: number; z: number }[];
+  // Avec zonly=true, le service renvoie des nombres bruts : {"elevations":[43.09]}
+  // (vérifié le 11/11/2026) ; sans zonly, des objets {lat, lon, z}.
+  elevations: (number | { z?: number })[];
 }
 
 async function fetchAltitude(lat: number, lon: number): Promise<number | null> {
@@ -18,8 +20,8 @@ async function fetchAltitude(lat: number, lon: number): Promise<number | null> {
       cacheKey: "ign:alti",
       ttlMs: 365 * 24 * 60 * 60 * 1000, // le relief ne bouge pas
     });
-    const first = data.elevations?.[0] as { z?: number } | undefined;
-    const z = first?.z;
+    const first = data.elevations?.[0];
+    const z = typeof first === "number" ? first : first?.z;
     // IGN renvoie -99999 hors couverture.
     return typeof z === "number" && z > -1000 ? z : null;
   } catch {
