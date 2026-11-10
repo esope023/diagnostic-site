@@ -181,8 +181,21 @@ export function mountHeliodon(
   }
   animate();
 
+  // Le conteneur peut être replié au montage (largeur nulle) : on ajuste la
+  // scène dès qu'il prend sa taille réelle, et à chaque redimensionnement.
+  const resizeObserver = new ResizeObserver(() => {
+    const w = container.clientWidth;
+    const h = container.clientHeight || height;
+    if (w === 0) return;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+  resizeObserver.observe(container);
+
   return {
     dispose() {
+      resizeObserver.disconnect();
       cancelAnimationFrame(frameId);
       controls.dispose();
       renderer.dispose();

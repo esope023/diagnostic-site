@@ -90,6 +90,7 @@ form.addEventListener("submit", async (e) => {
 
   modulesEl.innerHTML = "";
   moduleBodies.clear();
+  modulesToolbar.hidden = true;
   modulesEl.insertAdjacentHTML("beforeend", `<p class="placeholder">Géocodage…</p>`);
   exportBtn.disabled = true;
   syntheseEl.hidden = true;
@@ -147,24 +148,83 @@ async function runModules(
 
     let body = moduleBodies.get(mod.id);
     if (!body) {
-      const card = document.createElement("section");
-      card.className = "module-card";
-      card.innerHTML = `<h2>${mod.icon ?? ""} ${mod.label}</h2><div class="module-body"></div>`;
-      modulesEl.appendChild(card);
-      body = card.querySelector<HTMLElement>(".module-body")!;
+      body = createModuleCard(mod.id, `${mod.icon ?? ""} ${mod.label}`);
       moduleBodies.set(mod.id, body);
     }
+    const card = body.closest<HTMLElement>(".module-card")!;
 
     await runModule(mod, body, ctx, {
       onLoading: () => {
+        setCardStatus(card, "loading");
         body!.innerHTML = `<p class="placeholder">Chargement…</p>`;
       },
       onError: (message) => {
         body!.innerHTML = `<p class="error">Erreur : ${message}</p>`;
       },
     });
+    // Un module peut afficher lui-même une donnée indisponible sans lever
+    // d'erreur : on le signale dans l'en-tête, visible même replié.
+    setCardStatus(card, body.querySelector(".error") ? "warning" : "ok");
   }
 }
+
+// --- Cartes de module dépliables ---------------------------------------------
+type CardStatus = "loading" | "ok" | "warning";
+const STATUS_TEXT: Record<CardStatus, string> = {
+  loading: "Chargement…",
+  ok: "",
+  warning: "Données manquantes",
+};
+
+/** Crée une carte de module repliée ; renvoie son corps (où le module s'affiche). */
+function createModuleCard(id: string, title: string): HTMLElement {
+  const card = document.createElement("section");
+  card.className = "module-card collapsed";
+  const bodyId = `module-body-${id}`;
+  card.innerHTML = `
+    <h2 class="module-heading">
+      <button type="button" class="module-toggle" aria-expanded="false" aria-controls="${bodyId}">
+        <span class="module-title"></span>
+        <span class="module-status" aria-live="polite"></span>
+        <span class="module-chevron" aria-hidden="true"></span>
+      </button>
+    </h2>
+    <div class="module-body" id="${bodyId}" hidden></div>`;
+  card.querySelector(".module-title")!.textContent = title;
+  card.querySelector(".module-toggle")!.addEventListener("click", () => {
+    setCardOpen(card, card.classList.contains("collapsed"));
+  });
+  // La barre vit dans la colonne des modules (vidée à chaque recherche).
+  if (!modulesToolbar.isConnected) modulesEl.prepend(modulesToolbar);
+  modulesEl.appendChild(card);
+  modulesToolbar.hidden = false;
+  return card.querySelector<HTMLElement>(".module-body")!;
+}
+
+function setCardOpen(card: HTMLElement, open: boolean): void {
+  card.classList.toggle("collapsed", !open);
+  card.querySelector(".module-toggle")!.setAttribute("aria-expanded", String(open));
+  card.querySelector<HTMLElement>(".module-body")!.hidden = !open;
+}
+
+function setCardStatus(card: HTMLElement, status: CardStatus): void {
+  card.dataset.status = status;
+  card.querySelector(".module-status")!.textContent = STATUS_TEXT[status];
+}
+
+// --- Tout déplier / tout replier ---------------------------------------------
+const modulesToolbar = document.createElement("div");
+modulesToolbar.className = "modules-toolbar";
+modulesToolbar.hidden = true;
+modulesToolbar.innerHTML = `
+  <button type="button" data-open="true">Tout déplier</button>
+  <button type="button" data-open="false">Tout replier</button>`;
+modulesToolbar.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-open]");
+  if (!btn) return;
+  const open = btn.dataset.open === "true";
+  modulesEl.querySelectorAll<HTMLElement>(".module-card").forEach((c) => setCardOpen(c, open));
+});
 
 // --- Export ------------------------------------------------------------------
 exportBtn.addEventListener("click", async () => {

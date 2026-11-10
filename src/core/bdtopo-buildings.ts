@@ -7,7 +7,8 @@ import { bboxAroundMeters } from "./geo";
 import type { BuildingFootprint } from "./osm-buildings";
 
 interface IgnBatimentFeature {
-  geometry: { type: string; coordinates: number[][][] };
+  // BD TOPO v3 livre les bâtiments en MultiPolygon (souvent 3D : [lon, lat, z]).
+  geometry: { type: string; coordinates: number[][][] | number[][][][] };
   properties: Record<string, unknown>;
 }
 interface IgnBatimentResponse {
@@ -23,6 +24,18 @@ function extractHeight(props: Record<string, unknown>): number | null {
     if (typeof v === "number" && v > 0) return v;
   }
   return null;
+}
+
+/** Anneaux extérieurs d'un Polygon ou d'un MultiPolygon (≥ 3 sommets). */
+function outerRings(geometry: IgnBatimentFeature["geometry"] | undefined): number[][][] {
+  if (!geometry?.coordinates) return [];
+  const rings =
+    geometry.type === "Polygon"
+      ? [(geometry.coordinates as number[][][])[0]]
+      : geometry.type === "MultiPolygon"
+        ? (geometry.coordinates as number[][][][]).map((poly) => poly[0])
+        : [];
+  return rings.filter((r) => Array.isArray(r) && r.length >= 3);
 }
 
 /** Retourne null si le WFS échoue ou ne renvoie rien d'exploitable (déclenche le repli OSM). */
@@ -43,12 +56,18 @@ export async function fetchBdTopoBuildings(
 
     if (!data.features || data.features.length === 0) return null;
 
-    return data.features
-      .filter((f) => f.geometry?.type === "Polygon" && f.geometry.coordinates?.[0]?.length >= 3)
-      .map((f) => ({
-        polygon: f.geometry.coordinates[0].map(([lon2, lat2]) => ({ lat: lat2, lon: lon2 })),
-        heightM: extractHeight(f.properties),
-      }));
+    const buildings: BuildingFootprint[] = [];
+    for (const f of data.features) {
+      const heightM = extractHeight(f.properties);
+      for (const ring of outerRings(f.geometry)) {
+        buildings.push({
+          polygon: ring.map(([lon2, lat2]) => ({ lat: lat2, lon: lon2 })),
+          heightM,
+        });
+      }
+    }
+    // Rien d'exploitable : null pour déclencher le repli OSM.
+    return buildings.length > 0 ? buildings : null;
   } catch {
     return null;
   }
