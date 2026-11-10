@@ -14,7 +14,8 @@ function indicator(label: string, value: string): string {
 }
 
 function legacyHeliodonLink(ctx: SiteContext): string {
-  const url = new URL(LEGACY_HELIODON_URL);
+  // Base = page courante : accepte une URL absolue ou un chemin relatif.
+  const url = new URL(LEGACY_HELIODON_URL, window.location.href);
   url.searchParams.set("addr", ctx.label);
   url.searchParams.set("lat", ctx.lat.toFixed(6));
   url.searchParams.set("lon", ctx.lon.toFixed(6));
@@ -37,7 +38,7 @@ export function renderSoleil(el: HTMLElement, r: SoleilResult, ctx: SiteContext)
       ${indicator("Bâtiments pris en compte", `${r.buildingCount}`)}
       ${indicator("Source des hauteurs", BUILDING_SOURCE_LABEL[r.heightSource])}
       ${indicator("Couverture données hauteur", `${r.heightCoveragePct} %`)}
-      ${indicator("Ensoleillement annuel estimé", `${r.annualMaskedHours} h`)}
+      ${indicator("Heures de soleil possibles / an (ciel clair)", `${r.annualMaskedHours} h`)}
       ${indicator("Perte due aux masques", `${r.maskLossPct} %`)}
       ${indicator("Facteur de vue du ciel (SVF)", `${r.svf} — ${svfLabel(r.svf)}`)}
       ${indicator("Rayon analysé", `${r.effectiveRadiusM} m`)}

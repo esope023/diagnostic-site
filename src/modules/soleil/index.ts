@@ -38,7 +38,7 @@ export const soleilModule: DiagnosticModule<SoleilRaw, SoleilResult> = {
       moduleId: "soleil",
       title: "Soleil",
       summary:
-        `Ensoleillement annuel estimé ${result.annualMaskedHours} h (perte de ${result.maskLossPct} % ` +
+        `Heures de soleil possibles (ciel clair) ${result.annualMaskedHours} h/an (perte de ${result.maskLossPct} % ` +
         `due aux masques bâtis), SVF ${result.svf} (${svfLabel(result.svf)}), sur ${result.buildingCount} ` +
         `bâtiments voisins pris en compte.` +
         (pvAvailable
@@ -48,7 +48,7 @@ export const soleilModule: DiagnosticModule<SoleilRaw, SoleilResult> = {
         { label: "Bâtiments pris en compte", value: `${result.buildingCount}` },
         { label: "Source des hauteurs", value: result.heightSource },
         { label: "Couverture données hauteur", value: `${result.heightCoveragePct} %` },
-        { label: "Ensoleillement annuel estimé", value: `${result.annualMaskedHours} h` },
+        { label: "Heures de soleil possibles (ciel clair, hors nuages)", value: `${result.annualMaskedHours} h/an` },
         { label: "Perte due aux masques", value: `${result.maskLossPct} %` },
         { label: "Facteur de vue du ciel (SVF)", value: `${result.svf} — ${svfLabel(result.svf)}` },
         ...(pvAvailable

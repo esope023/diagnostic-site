@@ -18,7 +18,8 @@ export const PROXY_BASE = import.meta.env.VITE_PROXY_BASE ?? "";
  * que de dupliquer ce travail. À adapter si l'URL de déploiement change.
  */
 export const LEGACY_HELIODON_URL =
-  import.meta.env.VITE_LEGACY_HELIODON_URL ?? "https://esope023.github.io/Analyse/heliodon.html";
+  // Par défaut, l'héliodon est servi par ce même site (public/heliodon.html).
+  import.meta.env.VITE_LEGACY_HELIODON_URL || `${import.meta.env.BASE_URL}heliodon.html`;
 
 export const OPEN_METEO = {
   /** Archive/réanalyse ERA5 — normales, historique. */
@@ -51,6 +52,13 @@ export const IGN_LAYERS = {
 
 /** Overpass (OSM) — trame verte/bleue, morphologie urbaine. */
 export const OVERPASS = "https://overpass-api.de/api/interpreter";
+
+/** Serveurs Overpass de repli, essayés dans l'ordre si le principal échoue
+ * (surcharge fréquente d'overpass-api.de). Mêmes données OSM, même API. */
+export const OVERPASS_MIRRORS = [
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
 
 /**
  * WMS Géoplateforme (GetMap) — image orthophoto centrée sur un point, utilisée
@@ -112,6 +120,8 @@ export function ignWfsBatiments(bbox: {
   return (
     `https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
     `&TYPENAMES=BDTOPO_V3:batiment&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326` +
+    // Plafond explicite : le service tronque sinon à sa limite par défaut.
+    `&COUNT=5000` +
     `&BBOX=${minLat},${minLon},${maxLat},${maxLon},EPSG:4326`
   );
 }
