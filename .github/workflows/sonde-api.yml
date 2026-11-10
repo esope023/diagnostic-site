@@ -1,0 +1,47 @@
+name: Sonde API (temporaire)
+on:
+  push:
+    branches: [claude/sonde-api]
+jobs:
+  sonde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Sonde
+        shell: bash
+        run: |
+          O="https://esope023.github.io"
+          probe() { # $1 label, $2 url
+            echo "::group::$1"
+            echo "URL: $2"
+            curl -sS -m 40 -H "Origin: $O" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} en %{time_total}s\n" "$2" || echo "ECHEC curl"
+            grep -i "access-control-allow-origin\|content-type\|location" /tmp/h || echo "(pas d'en-tête CORS)"
+            head -c 1500 /tmp/b; echo
+            echo "::endgroup::"
+          }
+          G=$(curl -sS -m 20 "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=1")
+          echo "$G" | head -c 600; echo
+          LON=$(echo "$G" | jq -r '.features[0].geometry.coordinates[0]'); LAT=$(echo "$G" | jq -r '.features[0].geometry.coordinates[1]')
+          INSEE=$(echo "$G" | jq -r '.features[0].properties.citycode'); echo "LAT=$LAT LON=$LON INSEE=$INSEE"
+          PT=$(jq -rn --argjson x $LON --argjson y $LAT '{type:"Point",coordinates:[$x,$y]}|@uri')
+          probe "ALTI zonly" "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=$LON&lat=$LAT&resource=ign_rge_alti_wld&zonly=true&indent=false"
+          DLAT=0.0027; DLON=0.0037
+          probe "BDTOPO WFS" "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=3&BBOX=$(echo "$LAT - $DLAT" | bc),$(echo "$LON - $DLON" | bc),$(echo "$LAT + $DLAT" | bc),$(echo "$LON + $DLON" | bc),EPSG:4326"
+          probe "GPU zone-urba" "https://apicarto.ign.fr/api/gpu/zone-urba?geom=$PT"
+          PART=$(jq -r '.features[0].properties.partition' /tmp/b); echo "PARTITION=$PART"
+          probe "GPU document details" "https://www.geoportail-urbanisme.gouv.fr/api/document/$PART/details"
+          probe "GPU document (sans details)" "https://www.geoportail-urbanisme.gouv.fr/api/document?partition=$PART"
+          probe "GPU sup-s" "https://apicarto.ign.fr/api/gpu/assiette-sup-s?geom=$PT"
+          probe "GPU municipality" "https://apicarto.ign.fr/api/gpu/municipality?insee=$INSEE"
+          probe "GEORISQUES rga" "https://georisques.gouv.fr/api/v1/rga?latlon=$LON,$LAT"
+          probe "GEORISQUES synthese" "https://georisques.gouv.fr/api/v1/resultats_rapport_risque?latlon=$LON,$LAT"
+          probe "GEORISQUES catnat rayon" "https://georisques.gouv.fr/api/v1/gaspar/catnat?longitude=$LON&latitude=$LAT&rayon=1000&page_size=5"
+          probe "GEORISQUES catnat insee" "https://georisques.gouv.fr/api/v1/gaspar/catnat?code_insee=$INSEE&page_size=5"
+          probe "GEORISQUES v2 racine" "https://georisques.gouv.fr/api/v2/"
+          Q=$(jq -rn '"[out:json][timeout:25];way[\"building\"](around:40,43.3036,5.4085);out geom;"|@uri')
+          probe "OVERPASS main" "https://overpass-api.de/api/interpreter?data=$Q"
+          probe "OVERPASS private.coffee" "https://overpass.private.coffee/api/interpreter?data=$Q"
+          probe "OVERPASS kumi" "https://overpass.kumi.systems/api/interpreter?data=$Q"
+          probe "OVERPASS mail.ru" "https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=$Q"
+          probe "HUBEAU stations" "https://hubeau.eaufrance.fr/api/v1/niveaux_nappes/stations?bbox=5.2,43.17,5.6,43.44&size=3&format=json"
+          probe "OPENMETEO archive 30 ans" "https://archive-api.open-meteo.com/v1/archive?latitude=$LAT&longitude=$LON&start_date=1991-01-01&end_date=2020-12-31&daily=precipitation_sum&timezone=Europe%2FParis"
