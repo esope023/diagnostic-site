@@ -3,20 +3,53 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  sonde:
+  e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Sonde 3
+      - uses: actions/checkout@v4
+        with: { ref: claude/corrections-sources }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci && npm run build
+        env: { GH_PAGES_BASE: /diagnostic-site/ }
+      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Test réel
         shell: bash
         run: |
-          set +e +o pipefail
-          LAT=43.303347; LON=5.403146
-          UA="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1"
-          PT=$(jq -rn --argjson x $LON --argjson y $LAT '{type:"Point",coordinates:[$x,$y]}|@uri')
-          j() { curl -sS -m 40 -A "$UA" -H "Origin: https://esope023.github.io" "$1"; }
-          echo "== synthese"; j "https://georisques.gouv.fr/api/v1/resultats_rapport_risque?latlon=$LON,$LAT" | jq -c '{rn:(.risquesNaturels|to_entries|map({k:.key,p:.value.present,c:.value.libelleStatutCommune,a:.value.libelleStatutAdresse})), rt:(.risquesTechnologiques|to_entries|map({k:.key,p:.value.present,c:.value.libelleStatutCommune,a:.value.libelleStatutAdresse})), autres:(keys)}'
-          echo "== catnat latlon"; j "https://georisques.gouv.fr/api/v1/gaspar/catnat?latlon=$LON,$LAT&rayon=1000&page_size=3" | jq -c '{results, response_code, message, d:[.data[]?|{libelle_risque_jo, date_debut_evt, code_insee}]}'
-          echo "== catnat insee commune"; j "https://georisques.gouv.fr/api/v1/gaspar/catnat?code_insee=13055&page_size=3" | jq -c '{results, d:[.data[]?|keys]|.[0]}'
-          echo "== overpass main UA navigateur"; curl -sS -m 40 -A "$UA" -H "Origin: https://esope023.github.io" -o /tmp/o -w "HTTP %{http_code} %{time_total}s\n" -D /tmp/oh "https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%3Bway%5B%22building%22%5D%28around%3A40%2C43.3036%2C5.4085%29%3Bout%20geom%3B"; grep -i "access-control" /tmp/oh; head -c 200 /tmp/o; echo
-          echo "== overpass main POST"; curl -sS -m 40 -A "$UA" -H "Origin: https://esope023.github.io" -o /tmp/o -w "HTTP %{http_code} %{time_total}s\n" --data-urlencode 'data=[out:json];way["building"](around:40,43.3036,5.4085);out geom;' https://overpass-api.de/api/interpreter; head -c 200 /tmp/o; echo
+          set +e
+          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch(); const p = await b.newPage({ viewport:{width:390,height:844}, userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+            const t0 = Date.now(); const log = (...a) => console.log(((Date.now()-t0)/1000).toFixed(1)+'s', ...a);
+            p.on('console', m => { if (m.type()==='error') log('CONSOLE', m.text().slice(0,200)); });
+            p.on('requestfailed', r => log('ECHEC', r.url().slice(0,110), r.failure()?.errorText));
+            p.on('response', r => { const u=r.url(); if (!u.includes('localhost')) log('HTTP', r.status(), u.slice(0,110)); });
+            await p.goto('http://localhost:4173/diagnostic-site/');
+            await p.fill('#search-input', '2 rue jean 13004 marseille');
+            await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000});
+            await p.keyboard.press('Enter');
+            const until = Date.now()+200000;
+            let last='';
+            while (Date.now()<until) {
+              const st = await p.$$eval('.module-card', cs=>cs.map(c=>c.querySelector('.module-title').textContent.trim()+'='+c.dataset.status).join(' | '));
+              if (st!==last) { log('ETAT', st); last=st; }
+              if (st && !st.includes('loading')) break;
+              await p.waitForTimeout(2000);
+            }
+            log('SITE', await p.textContent('#site-info'));
+            await p.click('.modules-toolbar button[data-open=true]');
+            await p.waitForTimeout(1500);
+            for (const c of await p.$$('.module-card')) {
+              const txt = (await c.innerText()).replace(/\n+/g,' ¶ ').slice(0,1400);
+              console.log('\n===== ' + txt);
+            }
+            console.log('\n===== LIEN REGLEMENT', await p.$eval('a[href*="pdf"], a[href*="Reglement"]', a=>a.href).catch(()=> 'aucun'));
+            console.log('MARQUEUR', await p.$eval('.site-marker svg', s=>s.getBoundingClientRect().width).catch(()=> 'absent'));
+            console.log('SYNTHESE', (await p.innerText('#synthese')).replace(/\n+/g,' ¶ ').slice(0,1500));
+            await b.close();
+          })();
+          JS
+          node t.cjs
