@@ -7,21 +7,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Sonde 2
+      - name: Sonde 3
         shell: bash
         run: |
+          set +e +o pipefail
           LAT=43.303347; LON=5.403146
           UA="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1"
           PT=$(jq -rn --argjson x $LON --argjson y $LAT '{type:"Point",coordinates:[$x,$y]}|@uri')
           j() { curl -sS -m 40 -A "$UA" -H "Origin: https://esope023.github.io" "$1"; }
-          echo "== BDTOPO lon,lat"; j "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=2&BBOX=5.3995,43.3006,5.4068,43.3060,EPSG:4326" | jq -c '{numberMatched, g:[.features[]|{t:.geometry.type, z:(.geometry.coordinates|flatten|length), h:.properties.hauteur, keys:(.properties|keys)}]}'
-          echo "== BDTOPO urn"; j "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:batiment&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=2&BBOX=43.3006,5.3995,43.3060,5.4068,urn:ogc:def:crs:EPSG::4326" | jq -c '{numberMatched, g:[.features[]|{t:.geometry.type, first:.geometry.coordinates[0][0][0]}]}'
-          echo "== zone-urba props"; j "https://apicarto.ign.fr/api/gpu/zone-urba?geom=$PT" | jq -c '[.features[]|.properties]'
-          echo "== sup-s props"; j "https://apicarto.ign.fr/api/gpu/assiette-sup-s?geom=$PT" | jq -c '[.features[]|.properties]'
-          echo "== sup-l"; j "https://apicarto.ign.fr/api/gpu/assiette-sup-l?geom=$PT" | jq -c '[.features[]|.properties]' | head -c 800; echo
-          echo "== document by gpu_doc_id"; ID=$(j "https://apicarto.ign.fr/api/gpu/zone-urba?geom=$PT" | jq -r '.features[0].properties.gpu_doc_id // empty'); echo "ID=$ID"
-          [ -n "$ID" ] && j "https://www.geoportail-urbanisme.gouv.fr/api/document/$ID/details" | head -c 1500; echo
-          [ -n "$ID" ] && j "https://www.geoportail-urbanisme.gouv.fr/api/document/$ID/files" | head -c 1200; echo
           echo "== synthese"; j "https://georisques.gouv.fr/api/v1/resultats_rapport_risque?latlon=$LON,$LAT" | jq -c '{rn:(.risquesNaturels|to_entries|map({k:.key,p:.value.present,c:.value.libelleStatutCommune,a:.value.libelleStatutAdresse})), rt:(.risquesTechnologiques|to_entries|map({k:.key,p:.value.present,c:.value.libelleStatutCommune,a:.value.libelleStatutAdresse})), autres:(keys)}'
           echo "== catnat latlon"; j "https://georisques.gouv.fr/api/v1/gaspar/catnat?latlon=$LON,$LAT&rayon=1000&page_size=3" | jq -c '{results, response_code, message, d:[.data[]?|{libelle_risque_jo, date_debut_evt, code_insee}]}'
           echo "== catnat insee commune"; j "https://georisques.gouv.fr/api/v1/gaspar/catnat?code_insee=13055&page_size=3" | jq -c '{results, d:[.data[]?|keys]|.[0]}'
