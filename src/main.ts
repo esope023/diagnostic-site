@@ -54,6 +54,35 @@ const moduleBodies = new Map<string, HTMLElement>();
 
 initMap(mapContainer);
 
+// --- Bascule Carte 2D / Vue 3D -----------------------------------------------
+// La vue 3D (MapLibre, ~1 Mo) n'est chargée qu'au premier clic.
+const map3dContainer = document.getElementById("map3d") as HTMLElement;
+const modeButtons = document.querySelectorAll<HTMLButtonElement>(".map-mode button");
+const btn3d = document.querySelector<HTMLButtonElement>('.map-mode button[data-mode="3d"]')!;
+let view3d: import("./map3d/view3d").View3D | null = null;
+let view3dLoading: Promise<import("./map3d/view3d").View3D> | null = null;
+
+async function getView3d() {
+  if (view3d) return view3d;
+  view3dLoading ??= import("./map3d/view3d").then((m) => m.createView3D(map3dContainer));
+  view3d = await view3dLoading;
+  return view3d;
+}
+
+async function setMapMode(mode: "2d" | "3d"): Promise<void> {
+  modeButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  mapContainer.hidden = mode === "3d";
+  map3dContainer.hidden = mode === "2d";
+  if (mode === "3d" && currentCtx) {
+    const v = await getView3d();
+    v.resize();
+    await v.setSite(currentCtx);
+  }
+}
+modeButtons.forEach((b) =>
+  b.addEventListener("click", () => void setMapMode(b.dataset.mode as "2d" | "3d")),
+);
+
 // --- Autocomplétion de l'adresse ---------------------------------------------
 const addressAutocomplete = attachAddressAutocomplete(input, {
   // Oriente les suggestions vers le dernier site analysé.
@@ -86,14 +115,26 @@ form.addEventListener("submit", async (e) => {
   clearResults();
 
   const radiusM = radiusValueToMeters(radiusSelect.value);
-  const ctx = await buildSiteContext(query, radiusM, preset);
+  let ctx: SiteContext | null;
+  try {
+    ctx = await buildSiteContext(query, radiusM, preset);
+  } catch {
+    // Panne du géocodeur (504 de la Géoplateforme observés le 11/11/2026) :
+    // on le dit, au lieu d'un écran qui ne réagit pas.
+    modulesEl.innerHTML = `<p class="error">Le service d'adresses de l'IGN (Géoplateforme) ne
+      répond pas pour le moment. Réessayez dans quelques minutes — l'adresse n'est pas en cause.</p>`;
+    return;
+  }
   if (!ctx) {
-    modulesEl.innerHTML = `<p class="error">Adresse introuvable.</p>`;
+    modulesEl.innerHTML = `<p class="error">Adresse introuvable. Vérifiez l'orthographe ou ajoutez la commune.</p>`;
     return;
   }
   currentCtx = ctx;
 
   focusSite(ctx); // dessine aussi le cercle de rayon
+  btn3d.disabled = false;
+  btn3d.removeAttribute("title");
+  if (!map3dContainer.hidden && view3d) void view3d.setSite(ctx);
   siteInfoEl.hidden = false;
   updateSiteInfo(ctx);
 
@@ -108,6 +149,7 @@ radiusSelect.addEventListener("change", async () => {
   if (!currentCtx) return; // pas de site chargé, rien à recalculer
   currentCtx = { ...currentCtx, radiusM: radiusValueToMeters(radiusSelect.value) };
   updateAnalysisCircle(currentCtx);
+  if (!map3dContainer.hidden && view3d) void view3d.setSite(currentCtx);
   updateSiteInfo(currentCtx);
   await runModules(currentCtx, (m) => m.scope === "quartier");
   refreshSynthese();

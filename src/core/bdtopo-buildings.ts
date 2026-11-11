@@ -4,7 +4,7 @@
 import { fetchJson } from "../api/client";
 import { ignWfsBatiments } from "../api/endpoints";
 import { bboxAroundMeters } from "./geo";
-import type { BuildingFootprint } from "./osm-buildings";
+import type { BuildingFootprint, BuildingInfo } from "./osm-buildings";
 
 interface IgnBatimentFeature {
   // BD TOPO v3 livre les bâtiments en MultiPolygon (souvent 3D : [lon, lat, z]).
@@ -24,6 +24,18 @@ function extractHeight(props: Record<string, unknown>): number | null {
     if (typeof v === "number" && v > 0) return v;
   }
   return null;
+}
+
+/** Attributs BD TOPO v3 utiles à la fiche d'un bâtiment (lus défensivement). */
+function extractInfo(props: Record<string, unknown>): BuildingInfo {
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const num = (v: unknown) => (typeof v === "number" && v > 0 ? v : undefined);
+  return {
+    usage: str(props.usage_1),
+    etages: num(props.nombre_d_etages),
+    logements: num(props.nombre_de_logements),
+    dateApparition: str(props.date_d_apparition),
+  };
 }
 
 /** Anneaux extérieurs d'un Polygon ou d'un MultiPolygon (≥ 3 sommets). */
@@ -59,10 +71,12 @@ export async function fetchBdTopoBuildings(
     const buildings: BuildingFootprint[] = [];
     for (const f of data.features) {
       const heightM = extractHeight(f.properties);
+      const info = extractInfo(f.properties ?? {});
       for (const ring of outerRings(f.geometry)) {
         buildings.push({
           polygon: ring.map(([lon2, lat2]) => ({ lat: lat2, lon: lon2 })),
           heightM,
+          info,
         });
       }
     }

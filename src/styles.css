@@ -64,7 +64,9 @@ body {
 
 .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: calc(100vh - 150px); }
 @media (max-width: 800px) { .layout { grid-template-columns: 1fr; height: auto; } }
+.map-wrap { position: relative; min-height: 320px; height: 100%; }
 .map { min-height: 320px; height: 100%; }
+@media (max-width: 800px) { .map-wrap, .map, .map3d { height: 62vh; min-height: 380px; } }
 .modules { padding: 16px; overflow-y: auto; }
 .placeholder, .error { color: var(--muted); }
 .error { color: #c0392b; }
@@ -204,4 +206,60 @@ body {
 .module-retry {
   margin-top: 8px; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px;
   background: var(--panel); color: var(--accent); font-weight: 600; cursor: pointer;
+}
+
+/* --- Bascule Carte 2D / Vue 3D --------------------------------------------- */
+.map-mode {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;
+  display: flex; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+.map-mode button {
+  border: 0; background: none; padding: 6px 14px; border-radius: 999px;
+  font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer;
+}
+.map-mode button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.map-mode button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* --- Vue 3D ----------------------------------------------------------------- */
+.map3d { position: relative; height: 100%; min-height: 320px; }
+.map3d[hidden], .map[hidden] { display: none; }
+/* MapLibre impose position: relative sur son conteneur : on fixe la taille. */
+.m3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.m3d-canvas.maplibregl-map { position: absolute; }
+.m3d-panel {
+  position: absolute; z-index: 2; background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.15); font-size: 0.8rem; color: var(--ink);
+}
+.m3d-layers { top: 56px; left: 10px; max-width: 230px; }
+.m3d-layers summary { font-weight: 700; cursor: pointer; }
+.m3d-layers label { display: flex; align-items: center; gap: 6px; margin: 5px 0; cursor: pointer; }
+.m3d-base { border: 0; padding: 0; margin: 8px 0 0; }
+.m3d-base legend { font-weight: 600; color: var(--muted); padding: 0; }
+.m3d-legend { display: grid; gap: 3px; margin-top: 8px; font-size: 0.75rem; }
+.m3d-legend span { display: flex; align-items: center; gap: 6px; }
+.m3d-legend i { width: 14px; height: 10px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.15); }
+.m3d-source { margin: 8px 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.35; }
+.m3d-sun { left: 10px; right: 10px; bottom: 30px; max-width: 520px; margin: 0 auto; }
+.m3d-sun-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.m3d-date { font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; }
+.m3d-presets { display: flex; gap: 4px; }
+.m3d-presets button {
+  font: inherit; font-size: 0.75rem; padding: 3px 8px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer;
+}
+.m3d-presets button:hover { border-color: var(--accent); color: var(--accent); }
+.m3d-hour { width: 100%; margin: 8px 0 4px; accent-color: var(--accent); }
+.m3d-sun-info { margin: 0; line-height: 1.35; }
+.m3d-status {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0;
+  background: var(--panel); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+}
+.m3d-popup { font-size: 0.8rem; line-height: 1.45; color: #1f2933; }
+.m3d-popup-src { color: #6b7280; font-size: 0.72rem; }
+.map3d .site-marker { width: 36px; height: 36px; }
+@media (max-width: 800px) {
+  .m3d-layers { top: 52px; max-width: 200px; }
+  .m3d-sun { bottom: 24px; padding: 6px 8px; }
 }
