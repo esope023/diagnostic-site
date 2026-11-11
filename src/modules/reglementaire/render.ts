@@ -29,6 +29,9 @@ export function renderReglementaire(el: HTMLElement, r: ReglementaireResult): vo
              ? `<a href="${esc(r.documentUrl)}" target="_blank" rel="noopener">Ouvrir le règlement de la zone ↗</a>`
              : `Lien vers le règlement non publié pour cette zone — à vérifier en mairie.`
          }</p>`
+      : r.zonageFailed
+        ? `<p class="error">Zonage indisponible : le Géoportail de l'Urbanisme (API Carto IGN) n'a
+           pas répondu. Ce n'est pas une absence de PLU — réessayer plus tard.</p>`
       : `<p class="error">Aucun zonage trouvé sur le Géoportail de l'Urbanisme pour ce point.
          Cela ne signifie pas forcément l'absence de document d'urbanisme (couverture GPU incomplète,
          surtout en zone rurale) — à vérifier en mairie.</p>`;

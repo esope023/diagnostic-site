@@ -1,6 +1,6 @@
 // Construit le SiteContext partagé : géocodage BAN + altitude RGE ALTI + parcelle cadastrale.
 import type { SiteContext } from "./types";
-import { geocode, type GeocodeResult } from "./geocode";
+import { geocode, ensureInsee, type GeocodeResult } from "./geocode";
 import { fetchJson, roundCoord } from "../api/client";
 import { IGN_ALTI } from "../api/endpoints";
 import { fetchParcelle } from "./cadastre";
@@ -44,7 +44,8 @@ export async function buildSiteContext(
   /** Adresse déjà choisie dans les suggestions : évite un second géocodage. */
   preset?: GeocodeResult | null,
 ): Promise<SiteContext | null> {
-  const geo = preset ?? (await geocode(query));
+  // Une suggestion issue du secours OSM n'a pas de code INSEE : on le complète.
+  const geo = preset ? await ensureInsee(preset) : await geocode(query);
   if (!geo) return null;
 
   const [altitude, parcelle] = await Promise.all([
@@ -60,6 +61,7 @@ export async function buildSiteContext(
     insee: geo.insee,
     commune: geo.commune,
     postcode: geo.postcode,
+    geocodeSource: geo.source,
     timezone: guessTimezone(),
     radiusM,
     parcelle,

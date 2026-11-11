@@ -113,7 +113,11 @@ export function attachAddressAutocomplete(
       main.textContent = r.label;
       li.appendChild(main);
 
-      const meta = [r.kind ? KIND_LABELS[r.kind] ?? r.kind : null, r.context]
+      const meta = [
+        r.kind ? KIND_LABELS[r.kind] ?? r.kind : null,
+        r.context,
+        r.source === "osm" ? "OpenStreetMap (secours)" : null,
+      ]
         .filter(Boolean)
         .join(" · ");
       if (meta) {

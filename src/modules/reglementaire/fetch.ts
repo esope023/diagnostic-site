@@ -49,7 +49,8 @@ interface GpuFeatureCollection<P> {
   features: { properties: P }[];
 }
 
-async function fetchZonage(ctx: SiteContext): Promise<ZonageFeatureProps | null> {
+/** `undefined` = service en échec (≠ `null` = aucun zonage au point). */
+async function fetchZonage(ctx: SiteContext): Promise<ZonageFeatureProps | null | undefined> {
   try {
     const url = gpuZoneUrba(sitePoint(ctx));
     const data = await fetchJson<GpuFeatureCollection<ZonageFeatureProps>>(url, {
@@ -60,7 +61,7 @@ async function fetchZonage(ctx: SiteContext): Promise<ZonageFeatureProps | null>
     });
     return data.features[0]?.properties ?? null;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -228,6 +229,8 @@ async function fetchCatnat(ctx: SiteContext): Promise<CatnatRaw | null> {
 // --- Assemblage ----------------------------------------------------------------
 export interface ReglementaireRaw {
   zonage: ZonageFeatureProps | null;
+  /** Le Géoportail de l'Urbanisme n'a pas répondu pour le zonage. */
+  zonageFailed: boolean;
   isRnu: boolean | null;
   documentUrl: string | null;
   sup: SupItem[] | null;
@@ -239,7 +242,7 @@ export interface ReglementaireRaw {
 }
 
 export async function fetchReglementaire(ctx: SiteContext): Promise<ReglementaireRaw> {
-  const [zonage, isRnu, sup, rga, risquesSynthese, catnat] = await Promise.all([
+  const [zonageRaw, isRnu, sup, rga, risquesSynthese, catnat] = await Promise.all([
     fetchZonage(ctx),
     fetchIsRnu(ctx),
     fetchSup(ctx),
@@ -248,10 +251,12 @@ export async function fetchReglementaire(ctx: SiteContext): Promise<Reglementair
     fetchCatnat(ctx),
   ]);
 
+  const zonageFailed = zonageRaw === undefined;
+  const zonage = zonageRaw ?? null;
   const documentUrl = documentUrlFrom(zonage);
 
   const partialFailure =
-    zonage === null || rga === null || risquesSynthese === null || catnat === null || sup === null;
+    zonageFailed || rga === null || risquesSynthese === null || catnat === null || sup === null;
 
-  return { zonage, isRnu, documentUrl, sup, rga, risquesSynthese, catnat, partialFailure };
+  return { zonage, zonageFailed, isRnu, documentUrl, sup, rga, risquesSynthese, catnat, partialFailure };
 }

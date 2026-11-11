@@ -17,6 +17,8 @@ export interface RisqueFlag {
 export interface ReglementaireResult {
   zonageLibelle: string | null;
   zonageType: string | null;
+  /** Zonage indisponible (service en échec), à distinguer d'« aucun zonage ». */
+  zonageFailed: boolean;
   isRnu: boolean | null;
   documentUrl: string | null;
   /** null = source indisponible (≠ aucune servitude). */
@@ -77,6 +79,7 @@ export function computeReglementaire(raw: ReglementaireRaw): ReglementaireResult
   return {
     zonageLibelle: raw.zonage?.libelle ?? raw.zonage?.libelong ?? null,
     zonageType: raw.zonage?.typezone ?? null,
+    zonageFailed: raw.zonageFailed,
     isRnu: raw.isRnu,
     documentUrl: raw.documentUrl,
     supCount: raw.sup?.length ?? null,

@@ -121,8 +121,9 @@ form.addEventListener("submit", async (e) => {
   } catch {
     // Panne du géocodeur (504 de la Géoplateforme observés le 11/11/2026) :
     // on le dit, au lieu d'un écran qui ne réagit pas.
-    modulesEl.innerHTML = `<p class="error">Le service d'adresses de l'IGN (Géoplateforme) ne
-      répond pas pour le moment. Réessayez dans quelques minutes — l'adresse n'est pas en cause.</p>`;
+    modulesEl.innerHTML = `<p class="error">Les services d'adresses (IGN, puis OpenStreetMap en
+      secours) ne répondent pas pour le moment. Réessayez dans quelques minutes — l'adresse
+      n'est pas en cause.</p>`;
     return;
   }
   if (!ctx) {
@@ -166,7 +167,11 @@ function refreshSynthese(): void {
 function updateSiteInfo(ctx: SiteContext): void {
   const alt = ctx.altitude !== null ? `${ctx.altitude} m` : "n.d.";
   const perimetre = ctx.radiusM !== null ? `périmètre ${ctx.radiusM} m` : "échelle parcelle";
-  siteInfoEl.textContent = `${ctx.label} — altitude ${alt} — ${perimetre}`;
+  const secours =
+    ctx.geocodeSource === "osm"
+      ? " — adresse localisée via OpenStreetMap (service d'adresses IGN indisponible) : vérifiez le repère"
+      : "";
+  siteInfoEl.textContent = `${ctx.label} — altitude ${alt} — ${perimetre}${secours}`;
 }
 
 // --- Exécution des modules ---------------------------------------------------
