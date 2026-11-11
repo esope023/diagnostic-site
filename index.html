@@ -31,7 +31,14 @@
     <section id="synthese" class="synthese-card" hidden aria-label="Synthèse des enjeux"></section>
 
     <main class="layout">
-      <section id="map" class="map" aria-label="Carte du site"></section>
+      <section class="map-wrap" aria-label="Carte du site">
+        <div id="map" class="map"></div>
+        <div id="map3d" class="map3d" hidden></div>
+        <div class="map-mode" role="group" aria-label="Type de carte">
+          <button type="button" data-mode="2d" aria-pressed="true">Carte 2D</button>
+          <button type="button" data-mode="3d" aria-pressed="false" disabled title="Lancez d'abord une analyse">Vue 3D</button>
+        </div>
+      </section>
       <section id="modules" class="modules" aria-label="Résultats du diagnostic">
         <p class="placeholder">Recherchez une adresse pour lancer le diagnostic.</p>
       </section>

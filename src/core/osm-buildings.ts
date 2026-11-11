@@ -10,6 +10,16 @@ export interface BuildingFootprint {
   polygon: LatLon[];
   /** Hauteur estimée en mètres, null si aucune donnée exploitable. */
   heightM: number | null;
+  /** Attributs descriptifs, quand la source les fournit (BD TOPO). */
+  info?: BuildingInfo;
+}
+
+export interface BuildingInfo {
+  usage?: string;
+  etages?: number;
+  logements?: number;
+  /** Date d'apparition dans la base (souvent l'année de construction connue). */
+  dateApparition?: string;
 }
 
 export interface OsmBuildingsResult {
