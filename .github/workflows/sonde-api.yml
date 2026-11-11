@@ -3,64 +3,21 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  e2e:
+  geocodeurs:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with: { ref: claude/carte-3d }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci && npm run build
-        env: { GH_PAGES_BASE: /diagnostic-site/ }
-      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
       - name: Géocodeurs
         shell: bash
         run: |
           set +e
-          for u in "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=1" "https://api-adresse.data.gouv.fr/search/?q=2%20rue%20jean%2013004%20marseille&limit=1"; do
-            curl -sS -m 20 -H "Origin: https://esope023.github.io" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} %{time_total}s  $u\n" "$u"; grep -i "access-control-allow-origin\|^location" /tmp/h; head -c 300 /tmp/b; echo
-          done
-      - name: Test réel vue 3D
-        shell: bash
-        run: |
-          set +e
-          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
-          cat > t.cjs <<'JS'
-          const { chromium } = require('playwright');
-          (async () => {
-            const b = await chromium.launch({ args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
-            for (const [name,vw,vh] of [['desktop',1280,860],['mobile',390,844]]) {
-              const p = await b.newPage({ viewport:{width:vw,height:vh} });
-              const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
-              p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
-              p.on('console', m=>{ if (m.type()==='error') log('CONSOLE', m.text().slice(0,160)); });
-              p.on('response', r=>{ const u=r.url(); if (/geocodage|BDTOPO|wmts/.test(u) && r.status()!==200) log('HTTP', r.status(), u.slice(0,100)); });
-              // Géocodage simulé (service IGN en panne pendant le test) ; tout le reste est réel.
-              await p.route('**/geocodage/search**', r => r.fulfill({ headers:{'access-control-allow-origin':'*'}, json:{features:[{geometry:{coordinates:[5.403146,43.303347]},properties:{label:'2 Rue Jean 13004 Marseille',type:'housenumber',context:"13, Bouches-du-Rhône, Provence-Alpes-Côte d'Azur",citycode:'13204',city:'Marseille',postcode:'13004'}}]} }));
-              await p.goto('http://localhost:4173/diagnostic-site/');
-              await p.fill('#search-input', '2 rue jean 13004 marseille');
-              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:30000}).catch(()=>log('pas de suggestion, envoi direct'));
-              await p.keyboard.press('Enter');
-              await p.waitForFunction(()=>!document.querySelector('.map-mode button[data-mode="3d"]').disabled, null, {timeout:30000});
-              await p.click('.map-mode button[data-mode="3d"]');
-              await p.waitForFunction(()=>/bâtiments|indisponibles/.test(document.querySelector('.m3d-source')?.textContent||''), null, {timeout:90000}).catch(()=>log('TIMEOUT source'));
-              await p.waitForTimeout(6000);
-              log('SOURCE', await p.textContent('.m3d-source'));
-              log('SOLEIL', (await p.textContent('.m3d-sun-info')).replace(/\s+/g,' '));
-              const shot = async (tag) => { const buf = await p.locator('.map-wrap').screenshot({ type:'jpeg', quality:55 }); console.log('IMG '+name+'-'+tag+' '+buf.toString('base64')); };
-              await shot('plan');
-              if (name==='desktop') {
-                await p.click('.m3d-presets button[data-md="06-21"]');
-                await p.$eval('.m3d-hour', el=>{ el.value='17'; el.dispatchEvent(new Event('input')); });
-                await p.check('input[name="m3d-base"][value="ortho"]');
-                await p.waitForTimeout(6000);
-                log('SOLEIL 21/06 17h', (await p.textContent('.m3d-sun-info')).replace(/\s+/g,' '));
-                await shot('ortho-juin');
-              }
-              await p.close();
-            }
-            await b.close();
-          })();
-          JS
-          node t.cjs
+          p() { curl -sS -m 20 -A "diagnostic-site (github.com/esope023/diagnostic-site)" -H "Origin: https://esope023.github.io" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} %{time_total}s redir=%{redirect_url}\n" "$1"; echo "  $1"; grep -i "^access-control-allow-origin" /tmp/h; head -c 400 /tmp/b; echo; echo; }
+          for i in 1 2 3; do p "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=1"; done
+          p "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=5&autocomplete=1"
+          p "https://data.geopf.fr/geocodage/completion?text=2%20rue%20jean%20marseille&maximumResponses=5"
+          p "https://api-adresse.data.gouv.fr/search/?q=2%20rue%20jean%2013004%20marseille&limit=1"
+          p "https://photon.komoot.io/api/?q=2%20rue%20jean%2013004%20marseille&limit=3&lang=fr"
+          p "https://nominatim.openstreetmap.org/search?q=2%20rue%20jean%2013004%20marseille&format=jsonv2&limit=1&countrycodes=fr&addressdetails=1"
+          p "https://geo.api.gouv.fr/communes?lat=43.3033&lon=5.4031&fields=code,nom,codesPostaux"
+          p "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=5.4031&lat=43.3033&resource=ign_rge_alti_wld&zonly=true"
+          p "https://apicarto.ign.fr/api/gpu/municipality?insee=13055"
