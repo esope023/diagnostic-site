@@ -30,8 +30,8 @@ export const urbanismeModule: DiagnosticModule<UrbanismeRaw, UrbanismeResult> = 
         title: "Urbanisme",
         summary:
           result.buildingCount === 0
-            ? `Aucun bâtiment identifié dans OpenStreetMap dans un rayon de ${result.effectiveRadiusM} m.`
-            : "Données OpenStreetMap indisponibles au moment de la génération du rapport.",
+            ? `Aucun bâtiment identifié (IGN BD TOPO / OpenStreetMap) dans un rayon de ${result.effectiveRadiusM} m.`
+            : "Données de bâtiments indisponibles au moment de la génération du rapport.",
         indicators: [],
         charts: [],
         notes: [],
@@ -73,8 +73,11 @@ export const urbanismeModule: DiagnosticModule<UrbanismeRaw, UrbanismeResult> = 
             "réglementaire correcte pour ce cadrage 'Parcelle'."
           : "CES/COS calculés sur un cercle (cadrage 'quartier'), pas sur une parcelle : " +
             "estimation haute, les polygones ne sont pas découpés au bord du rayon.",
-        `Hauteur connue pour seulement ${result.heightCoveragePct} % des bâtiments ` +
-          "(building:levels × 3 m) : COS et hauteur moyenne à interpréter avec prudence si ce taux est bas.",
+        `Hauteur connue pour ${result.heightCoveragePct} % des bâtiments ` +
+          (result.heightSource === "bdtopo"
+            ? "(attribut hauteur de la BD TOPO)"
+            : "(building:levels × 3 m, OpenStreetMap)") +
+          " : COS et hauteur moyenne à interpréter avec prudence si ce taux est bas.",
         "L'indice d'îlot de chaleur est une heuristique (densité + hauteur), pas une " +
           "simulation UHI. Le confort des espaces publics (vent, ombre piétonne) n'est pas " +
           "calculé : nécessite des données de simulation non disponibles via API publique.",

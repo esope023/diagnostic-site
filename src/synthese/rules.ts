@@ -221,11 +221,17 @@ function regleEauPluviale(i: SyntheseInput): Enjeu {
 
   if (i.reglementaire) {
     if (i.reglementaire.risquesDisponibles) {
-      if (i.reglementaire.risquesPresents.some((r) => /inond/i.test(r.libelle)))
-        s(d, "reglementaire", 2, "Risque inondation signalé (Géorisques)", "présent sur le point");
-      if (i.reglementaire.catnatCount >= CATNAT_RECURRENT)
-        s(d, "reglementaire", 1, "Sinistralité CatNat récurrente à proximité", `${i.reglementaire.catnatCount} arrêtés (< 1 km)`);
+      const inond = i.reglementaire.risquesPresents.find((r) => /inond/i.test(r.libelle));
+      // « present » vaut pour la commune ; seul le statut à l'adresse qualifie le point.
+      if (inond && /^Risque Existant/i.test(inond.statutAdresse ?? ""))
+        s(d, "reglementaire", 2, "Risque inondation à l'adresse (Géorisques)", inond.statutAdresse ?? "existant");
+      else if (inond)
+        s(d, "reglementaire", 1, "Risque inondation sur la commune (non qualifié à l'adresse)", `adresse : ${inond.statutAdresse ?? "n.d."}`);
     } else d.nonEvalues.push("Synthèse risques Géorisques indisponible");
+    const catnat = i.reglementaire.catnatCount;
+    if (catnat === null) d.nonEvalues.push("Arrêtés CatNat indisponibles");
+    else if (catnat >= CATNAT_RECURRENT)
+      s(d, "reglementaire", 1, "Sinistralité CatNat récurrente à proximité", `${catnat} arrêtés (communes à < 1 km)`);
   } else d.nonEvalues.push("Module Réglementaire non disponible");
 
   if (i.eau) {
@@ -273,7 +279,7 @@ function regleSols(i: SyntheseInput): Enjeu {
         /cavit|mouvement de terrain|séism|seism/i.test(r.libelle),
       );
       for (const r of geotechnique.slice(0, 2))
-        s(d, "reglementaire", 1, "Aléa géotechnique signalé", r.libelle);
+        s(d, "reglementaire", 1, "Aléa géotechnique signalé", `${r.libelle} — adresse : ${r.statutAdresse ?? "n.d."}`);
     }
   } else d.nonEvalues.push("Module Réglementaire non disponible");
 
@@ -370,7 +376,8 @@ function regleReglementaire(i: SyntheseInput): Enjeu {
       s(d, "reglementaire", 2, "Zone naturelle ou agricole : constructibilité très restreinte", `zone ${r.zonageLibelle ?? r.zonageType}`);
     else if (r.zonageType && r.zonageType.startsWith("AU"))
       s(d, "reglementaire", 1, "Zone à urbaniser (extension : enjeu ZAN, conditions d'ouverture)", `zone ${r.zonageLibelle ?? r.zonageType}`);
-    if (r.supCount >= SUP_NOMBREUSES)
+    if (r.supCount === null) d.nonEvalues.push("Servitudes (GPU) indisponibles");
+    else if (r.supCount >= SUP_NOMBREUSES)
       s(d, "reglementaire", 2, "Servitudes d'utilité publique multiples", `${r.supCount} SUP sur le point`);
     else if (r.supCount >= 1)
       s(d, "reglementaire", 1, "Servitude(s) d'utilité publique", `${r.supCount} SUP`);

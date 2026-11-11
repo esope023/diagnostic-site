@@ -18,15 +18,21 @@ const RISQUE_CLASS: Record<string, string> = {
 
 export function renderUrbanisme(el: HTMLElement, r: UrbanismeResult): void {
   if (r.fetchFailed) {
-    el.innerHTML = `<p class="error">Le service OpenStreetMap (Overpass) n'a pas répondu.
-      Réessayez dans quelques instants.</p>`;
+    el.innerHTML = `<p class="error">Aucune source de bâtiments n'a répondu (IGN BD TOPO, puis
+      OpenStreetMap en repli). Ce n'est pas une absence de bâti — réessayez dans quelques instants.</p>`;
     return;
   }
   if (r.buildingCount === 0) {
-    el.innerHTML = `<p class="error">Aucun bâtiment identifié dans OpenStreetMap dans
+    el.innerHTML = `<p class="error">Aucun bâtiment identifié (IGN BD TOPO / OpenStreetMap) dans
       un rayon de ${r.effectiveRadiusM} m.</p>`;
     return;
   }
+
+  const sourceNom = r.heightSource === "bdtopo" ? "IGN BD TOPO®" : "OpenStreetMap";
+  const hauteurMethode =
+    r.heightSource === "bdtopo"
+      ? "attribut <code>hauteur</code> de la BD TOPO"
+      : "tag <code>building:levels</code> × 3 m";
 
   const referenceLabel =
     r.referenceAreaSource === "parcelle_cadastrale"
@@ -50,10 +56,9 @@ export function renderUrbanisme(el: HTMLElement, r: UrbanismeResult): void {
     <p class="module-note">${
       r.referenceAreaSource === "parcelle_cadastrale"
         ? "CES/COS calculés sur la surface cadastrale réelle (IGN PCI) — définition réglementaire correcte pour ce cadrage."
-        : `Emprise au sol et COS estimés sur ${r.buildingCount} bâtiments OpenStreetMap dans un cercle de ${r.effectiveRadiusM} m (polygones non découpés au bord du cercle : estimation haute).`
+        : `Emprise au sol et COS estimés sur ${r.buildingCount} bâtiments ${sourceNom} dans un cercle de ${r.effectiveRadiusM} m (polygones non découpés au bord du cercle : estimation haute).`
     } Hauteur connue pour
-    ${r.heightCoveragePct} % des bâtiments seulement (tag <code>building:levels</code>
-    × 3 m) ; le COS et la hauteur moyenne sont donc à lire avec prudence si ce
+    ${r.heightCoveragePct} % des bâtiments (${hauteurMethode}) ; le COS et la hauteur moyenne sont donc à lire avec prudence si ce
     taux est faible. L'indice d'îlot de chaleur est une heuristique simplifiée
     (densité + hauteur), pas une simulation d'îlot de chaleur urbain — à
     croiser avec la végétalisation du module Nature. Le confort des espaces
