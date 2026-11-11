@@ -35,6 +35,13 @@ export const OPEN_METEO = {
  * domaine voué à disparaître). Mêmes paramètres et même réponse GeoJSON. */
 export const BAN_SEARCH = "https://data.geopf.fr/geocodage/search";
 
+/** Photon (komoot) — géocodeur OpenStreetMap, CORS ouvert, sans clé. Secours
+ * quand la BAN ne répond pas (vérifié le 11/11/2026 : 0,6 s, CORS « * »). */
+export const PHOTON_SEARCH = "https://photon.komoot.io/api/";
+
+/** API Découpage administratif (DINUM) — code INSEE au point (CORS ouvert). */
+export const GEO_API_COMMUNES = "https://geo.api.gouv.fr/communes";
+
 /** Service altimétrique Géoplateforme (RGE ALTI). */
 export const IGN_ALTI =
   "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";

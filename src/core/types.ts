@@ -22,6 +22,8 @@ export interface SiteContext {
   commune?: string;
   /** Code postal. */
   postcode?: string;
+  /** Source du géocodage : Base Adresse Nationale, ou OpenStreetMap en secours. */
+  geocodeSource?: "ban" | "osm";
   /** Fuseau IANA (ex. "Europe/Paris"), utilisé par les API météo. */
   timezone: string;
   /**
