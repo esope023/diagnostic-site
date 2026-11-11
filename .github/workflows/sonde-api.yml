@@ -3,21 +3,45 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  geocodeurs:
+  e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
-      - name: Géocodeurs
+      - uses: actions/checkout@v4
+        with: { ref: claude/secours-adresse }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci && npm run build
+        env: { GH_PAGES_BASE: /diagnostic-site/ }
+      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Test réel adresse
         shell: bash
         run: |
           set +e
-          p() { curl -sS -m 20 -A "diagnostic-site (github.com/esope023/diagnostic-site)" -H "Origin: https://esope023.github.io" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} %{time_total}s redir=%{redirect_url}\n" "$1"; echo "  $1"; grep -i "^access-control-allow-origin" /tmp/h; head -c 400 /tmp/b; echo; echo; }
-          for i in 1 2 3; do p "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=1"; done
-          p "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=5&autocomplete=1"
-          p "https://data.geopf.fr/geocodage/completion?text=2%20rue%20jean%20marseille&maximumResponses=5"
-          p "https://api-adresse.data.gouv.fr/search/?q=2%20rue%20jean%2013004%20marseille&limit=1"
-          p "https://photon.komoot.io/api/?q=2%20rue%20jean%2013004%20marseille&limit=3&lang=fr"
-          p "https://nominatim.openstreetmap.org/search?q=2%20rue%20jean%2013004%20marseille&format=jsonv2&limit=1&countrycodes=fr&addressdetails=1"
-          p "https://geo.api.gouv.fr/communes?lat=43.3033&lon=5.4031&fields=code,nom,codesPostaux"
-          p "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=5.4031&lat=43.3033&resource=ign_rge_alti_wld&zonly=true"
-          p "https://apicarto.ign.fr/api/gpu/municipality?insee=13055"
+          curl -sS -m 10 -o /dev/null -w "IGN géocodage maintenant : HTTP %{http_code}\n" "https://data.geopf.fr/geocodage/search?q=marseille&limit=1"
+          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch(); const p = await b.newPage({ viewport:{width:390,height:844} });
+            const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
+            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
+            p.on('response', r=>{ const u=r.url(); if (/geocodage|photon|geo\.api/.test(u)) log('HTTP', r.status(), u.slice(0,110)); });
+            await p.goto('http://localhost:4173/diagnostic-site/');
+            await p.click('#search-input'); await p.keyboard.type('2 rue jean 13004 marseille', {delay:60});
+            await p.waitForSelector('.address-suggestions li[role=option]', {timeout:30000}).catch(()=>log('PAS DE SUGGESTION'));
+            log('SUGGESTIONS', (await p.$$eval('.address-suggestions li[role=option]', ls=>ls.map(l=>l.innerText.replace(/\n/g,' / ')))).join(' || '));
+            await p.keyboard.press('Enter');
+            await p.waitForSelector('#site-info:not([hidden])', {timeout:30000}).catch(()=>log('PAS DE SITE'));
+            log('SITE', await p.textContent('#site-info'));
+            await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.textContent.includes('Réglementaire')); return c && c.dataset.status!=='loading'; }, null, {timeout:120000}).catch(()=>log('Réglementaire en attente'));
+            await p.click('.modules-toolbar button[data-open=true]').catch(()=>{});
+            const reg = await p.$$eval('.module-card', cs=>cs.filter(c=>c.textContent.includes('Réglementaire')).map(c=>c.innerText.replace(/\n+/g,' ¶ ').slice(0,500)));
+            log('REGLEMENTAIRE', reg[0]);
+            // Saisie directe sans choisir de suggestion
+            await p.fill('#search-input', 'place de la comédie montpellier'); await p.keyboard.press('Escape'); await p.click('form button[type=submit]');
+            await p.waitForTimeout(8000); log('SITE 2', await p.textContent('#site-info'));
+            await b.close();
+          })();
+          JS
+          node t.cjs
