@@ -14,6 +14,13 @@ jobs:
       - run: npm ci && npm run build
         env: { GH_PAGES_BASE: /diagnostic-site/ }
       - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Géocodeurs
+        shell: bash
+        run: |
+          set +e
+          for u in "https://data.geopf.fr/geocodage/search?q=2%20rue%20jean%2013004%20marseille&limit=1" "https://api-adresse.data.gouv.fr/search/?q=2%20rue%20jean%2013004%20marseille&limit=1"; do
+            curl -sS -m 20 -H "Origin: https://esope023.github.io" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} %{time_total}s  $u\n" "$u"; grep -i "access-control-allow-origin\|^location" /tmp/h; head -c 300 /tmp/b; echo
+          done
       - name: Test réel vue 3D
         shell: bash
         run: |
@@ -29,6 +36,8 @@ jobs:
               p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
               p.on('console', m=>{ if (m.type()==='error') log('CONSOLE', m.text().slice(0,160)); });
               p.on('response', r=>{ const u=r.url(); if (/geocodage|BDTOPO|wmts/.test(u) && r.status()!==200) log('HTTP', r.status(), u.slice(0,100)); });
+              // Géocodage simulé (service IGN en panne pendant le test) ; tout le reste est réel.
+              await p.route('**/geocodage/search**', r => r.fulfill({ headers:{'access-control-allow-origin':'*'}, json:{features:[{geometry:{coordinates:[5.403146,43.303347]},properties:{label:'2 Rue Jean 13004 Marseille',type:'housenumber',context:"13, Bouches-du-Rhône, Provence-Alpes-Côte d'Azur",citycode:'13204',city:'Marseille',postcode:'13004'}}]} }));
               await p.goto('http://localhost:4173/diagnostic-site/');
               await p.fill('#search-input', '2 rue jean 13004 marseille');
               await p.waitForSelector('.address-suggestions li[role=option]', {timeout:30000}).catch(()=>log('pas de suggestion, envoi direct'));
