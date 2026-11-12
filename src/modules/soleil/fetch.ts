@@ -39,7 +39,7 @@ interface OverpassTreeResponse {
  * repère visuel : n'entre PAS dans le calcul du masque solaire, qui reste
  * basé sur les bâtiments (une hauteur de couronne d'arbre non mesurée
  * fausserait le calcul plus qu'elle ne l'affinerait). */
-async function fetchTrees(ctx: SiteContext, radiusM: number): Promise<LatLon[]> {
+export async function fetchTrees(ctx: SiteContext, radiusM: number): Promise<LatLon[]> {
   const query = `
     [out:json][timeout:20];
     node["natural"="tree"](around:${radiusM},${ctx.lat},${ctx.lon});

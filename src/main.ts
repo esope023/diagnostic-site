@@ -64,35 +64,43 @@ const moduleBodies = new Map<string, HTMLElement>();
 
 initMap(mapContainer);
 initTheme(document.getElementById("theme-btn") as HTMLButtonElement);
+// L'onglet affiché au chargement suit l'adresse (#atelier) ; après les déclarations.
+queueMicrotask(() => void router());
 
-// --- Bascule Carte 2D / Vue 3D -----------------------------------------------
-// La vue 3D (MapLibre, ~1 Mo) n'est chargée qu'au premier clic.
-const map3dContainer = document.getElementById("map3d") as HTMLElement;
-const modeButtons = document.querySelectorAll<HTMLButtonElement>(".map-mode button");
-const btn3d = document.querySelector<HTMLButtonElement>('.map-mode button[data-mode="3d"]')!;
-let view3d: import("./map3d/view3d").View3D | null = null;
-let view3dLoading: Promise<import("./map3d/view3d").View3D> | null = null;
+// --- Onglets : Diagnostic / Atelier cartographique --------------------------
+// L'atelier (MapLibre, ~1 Mo) n'est chargé qu'à la première ouverture.
+const vueDiagnostic = document.getElementById("vue-diagnostic") as HTMLElement;
+const vueAtelier = document.getElementById("vue-atelier") as HTMLElement;
+const lienAtelier = document.querySelector<HTMLAnchorElement>(".map-atelier")!;
+let atelier: import("./atelier/atelier").Atelier | null = null;
+let atelierChargement: Promise<import("./atelier/atelier").Atelier> | null = null;
 
-async function getView3d() {
-  if (view3d) return view3d;
-  view3dLoading ??= import("./map3d/view3d").then((m) => m.createView3D(map3dContainer));
-  view3d = await view3dLoading;
-  return view3d;
+async function getAtelier() {
+  if (atelier) return atelier;
+  atelierChargement ??= import("./atelier/atelier").then((m) => m.createAtelier(vueAtelier));
+  atelier = await atelierChargement;
+  return atelier;
 }
 
-async function setMapMode(mode: "2d" | "3d"): Promise<void> {
-  modeButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
-  mapContainer.hidden = mode === "3d";
-  map3dContainer.hidden = mode === "2d";
-  if (mode === "3d" && currentCtx) {
-    const v = await getView3d();
-    v.resize();
-    await v.setSite(currentCtx);
+async function router(): Promise<void> {
+  const vue = location.hash === "#atelier" ? "atelier" : "diagnostic";
+  vueDiagnostic.hidden = vue === "atelier";
+  vueAtelier.hidden = vue !== "atelier";
+  document.body.dataset.vue = vue;
+  document.querySelectorAll<HTMLAnchorElement>(".tabs .tab").forEach((t) => {
+    if (t.dataset.vue === vue) t.setAttribute("aria-current", "page");
+    else t.removeAttribute("aria-current");
+  });
+  if (vue === "atelier") {
+    const a = await getAtelier();
+    a.resize();
+    if (currentCtx) await a.setSite(currentCtx);
+  } else {
+    getMapElement()?.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("resize"));
   }
 }
-modeButtons.forEach((b) =>
-  b.addEventListener("click", () => void setMapMode(b.dataset.mode as "2d" | "3d")),
-);
+window.addEventListener("hashchange", () => void router());
 
 // --- Autocomplétion de l'adresse ---------------------------------------------
 const addressAutocomplete = attachAddressAutocomplete(input, {
@@ -106,7 +114,7 @@ const radius = attachRadiusControl(document.getElementById("radius-control")!, a
   if (!currentCtx) return; // pas de site chargé, rien à recalculer
   currentCtx = { ...currentCtx, radiusM: meters };
   updateAnalysisCircle(currentCtx);
-  if (!map3dContainer.hidden && view3d) void view3d.setSite(currentCtx);
+  if (atelier) void atelier.setSite(currentCtx);
   updateSiteInfo(currentCtx);
   await runModules(currentCtx, (m) => m.scope === "quartier");
   refreshSynthese();
@@ -152,9 +160,8 @@ async function analyze(query: string, preset: GeocodeResult | null): Promise<voi
   currentCtx = ctx;
 
   focusSite(ctx); // dessine aussi le cercle de rayon
-  btn3d.disabled = false;
-  btn3d.removeAttribute("title");
-  if (!map3dContainer.hidden && view3d) void view3d.setSite(ctx);
+  lienAtelier.hidden = false;
+  if (atelier) void atelier.setSite(ctx);
   siteInfoEl.hidden = false;
   updateSiteInfo(ctx);
 
@@ -364,13 +371,14 @@ modulesToolbar.addEventListener("click", (e) => {
 exportBtn.addEventListener("click", async () => {
   if (!currentCtx) return;
   exportBtn.disabled = true;
+  const libelle = exportBtn.innerHTML;
   exportBtn.textContent = "Génération…";
   try {
     const syntheseBlock = syntheseToExportBlock(synthesizeFromRegistry());
     const blocks = [syntheseBlock, ...collectExportBlocks(currentCtx)];
     await generateReport(blocks, currentCtx, getMapElement());
   } finally {
-    exportBtn.textContent = "Exporter le rapport";
+    exportBtn.innerHTML = libelle;
     exportBtn.disabled = false;
   }
 });
