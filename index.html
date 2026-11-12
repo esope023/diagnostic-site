@@ -16,8 +16,8 @@
         <h1>Diagnostic de site</h1>
       </div>
       <nav class="tabs" aria-label="Espaces">
-        <a href="./" class="tab" aria-current="page">Diagnostic</a>
-        <span class="tab" aria-disabled="true" title="En préparation">Atelier cartographique</span>
+        <a href="#diagnostic" class="tab" data-vue="diagnostic" aria-current="page">Diagnostic</a>
+        <a href="#atelier" class="tab" data-vue="atelier">Atelier<span class="tab-long"> cartographique</span></a>
       </nav>
       <div class="header-actions">
         <button id="theme-btn" type="button" class="icon-btn">
@@ -25,10 +25,11 @@
             <circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
           </svg>
         </button>
-        <button id="export-btn" type="button" class="btn-secondary" disabled>Exporter le rapport</button>
+        <button id="export-btn" type="button" class="btn-secondary" disabled>Exporter<span class="tab-long"> le rapport</span></button>
       </div>
     </header>
 
+    <div id="vue-diagnostic">
     <form id="search-form" class="search" role="search">
       <div class="search-field">
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -46,11 +47,7 @@
       <div class="col-map">
         <section class="map-wrap" aria-label="Carte du site">
           <div id="map" class="map"></div>
-          <div id="map3d" class="map3d" hidden></div>
-          <div class="map-mode segmented" role="group" aria-label="Type de carte">
-            <button type="button" data-mode="2d" aria-pressed="true">Carte 2D</button>
-            <button type="button" data-mode="3d" aria-pressed="false" disabled title="Lancez d'abord une analyse">Vue 3D</button>
-          </div>
+          <a href="#atelier" class="map-atelier" hidden>Ouvrir dans l'atelier ↗</a>
         </section>
         <p class="attributions">
           Données : © OpenStreetMap · © IGN / Géoplateforme (Etalab 2.0) · Open-Meteo · PVGIS © Union européenne
@@ -63,6 +60,9 @@
         </section>
       </div>
     </main>
+    </div>
+
+    <section id="vue-atelier" class="atelier" hidden aria-label="Atelier cartographique"></section>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

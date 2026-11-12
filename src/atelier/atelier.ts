@@ -1,0 +1,537 @@
+// Atelier cartographique : carte pleine page (MapLibre, 2D et 3D) et menu des
+// couches à gauche, chacune avec son interrupteur et sa réglette d'opacité.
+// Chargé à la demande (import dynamique) : MapLibre pèse ~1 Mo.
+//
+// Reprend la vue 3D du Diagnostic (bâtiments BD TOPO, ombres portées à date
+// et heure légale) et ajoute les couches de contexte (cadastre, urbanisme,
+// risques, nature, végétation).
+
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { fetchJson } from "../api/client";
+import { fetchBuildingsWithHeight, BUILDING_SOURCE_LABEL, type BuildingsResult } from "../core/buildings";
+import { bboxAroundMeters } from "../core/geo";
+import type { SiteContext } from "../core/types";
+import { fetchTrees } from "../modules/soleil/fetch";
+import { DEFAULT_HEIGHT_M, MAX_SHADOW_M, type ShadowBuilding } from "../map3d/shadows";
+import type { ShadowRequest, ShadowResponse } from "../map3d/shadow-worker";
+import { sunAtLegalTime, formatHour } from "../map3d/sun";
+import {
+  COUCHES, FAMILLES, FONDS, HAUTEURS, INCONNU, USAGES, USAGE_AUTRE, NEUTRE,
+  type CoucheDef, type Fond,
+} from "./couches";
+
+type Coloration = "neutre" | "hauteur" | "usage";
+
+export interface Atelier {
+  setSite(ctx: SiteContext): Promise<void>;
+  /** À appeler quand l'onglet redevient visible. */
+  resize(): void;
+}
+
+interface Etat {
+  actif: boolean;
+  opacite: number;
+}
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+function cercle(lat: number, lon: number, r: number, n = 96): [number, number][] {
+  const mLat = 110_540;
+  const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const a = (i / n) * 2 * Math.PI;
+    return [lon + (Math.sin(a) * r) / mLon, lat + (Math.cos(a) * r) / mLat] as [number, number];
+  });
+}
+
+function repere(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "site-marker";
+  el.innerHTML = `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+    <line x1="18" y1="1" x2="18" y2="11" /><line x1="18" y1="25" x2="18" y2="35" />
+    <line x1="1" y1="18" x2="11" y2="18" /><line x1="25" y1="18" x2="35" y2="18" />
+    <circle cx="18" cy="18" r="7" class="ring" /><circle cx="18" cy="18" r="3" class="dot" /></svg>`;
+  return el;
+}
+
+function batiGeoJSON(data: BuildingsResult): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: data.buildings.map((b, i) => ({
+      type: "Feature",
+      id: i,
+      geometry: {
+        type: "Polygon",
+        coordinates: [[...b.polygon.map((p) => [p.lon, p.lat]), [b.polygon[0].lon, b.polygon[0].lat]]],
+      },
+      properties: {
+        h: b.heightM ?? DEFAULT_HEIGHT_M,
+        connue: b.heightM !== null,
+        usage: b.info?.usage ?? "",
+        etages: b.info?.etages ?? null,
+        logements: b.info?.logements ?? null,
+      },
+    })),
+  };
+}
+
+/** Zones de végétation BD TOPO (WFS Géoplateforme), dans l'emprise. */
+async function fetchVegetation(ctx: SiteContext, r: number): Promise<GeoJSON.FeatureCollection> {
+  const b = bboxAroundMeters(ctx.lat, ctx.lon, r);
+  const url =
+    `https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature` +
+    `&TYPENAMES=BDTOPO_V3:zone_de_vegetation&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=3000` +
+    `&BBOX=${b.minLon},${b.minLat},${b.maxLon},${b.maxLat},EPSG:4326`;
+  return fetchJson<GeoJSON.FeatureCollection>(url, {
+    cacheKey: "bdtopo:vegetation",
+    ttlMs: 30 * 24 * 60 * 60 * 1000,
+    timeoutMs: 30_000,
+    retries: 2,
+  });
+}
+
+export function createAtelier(root: HTMLElement): Atelier {
+  const etat = new Map<string, Etat>(COUCHES.map((c) => [c.id, { actif: c.active, opacite: c.opacite }]));
+  let fond: Fond = "plan";
+  let coloration: Coloration = "hauteur";
+  let mode3d = false;
+
+  // --- Gabarit ----------------------------------------------------------------
+  const ligne = (c: CoucheDef) => {
+    const e = etat.get(c.id)!;
+    const extra =
+      c.id === "fond"
+        ? `<div class="segmented seg-sm" role="group" aria-label="Fond de carte">
+            ${(Object.keys(FONDS) as Fond[]).map((k) => `<button type="button" data-fond="${k}" aria-pressed="${k === fond}">${FONDS[k].titre}</button>`).join("")}
+          </div>`
+        : c.id === "bati"
+          ? `<div class="segmented seg-sm" role="group" aria-label="Coloration des bâtiments">
+              <button type="button" data-colo="neutre" aria-pressed="false">Neutre</button>
+              <button type="button" data-colo="hauteur" aria-pressed="true">Hauteur</button>
+              <button type="button" data-colo="usage" aria-pressed="false">Usage</button>
+              <button type="button" disabled title="L'année de construction n'est pas publiée dans la BD TOPO">Époque</button>
+            </div>
+            <div class="at-legende" data-legende-bati></div>
+            <p class="at-note" data-bati-source></p>`
+          : "";
+    return `<div class="at-couche${e.actif ? " on" : ""}" data-couche="${c.id}">
+      <label class="at-ligne">
+        <span class="at-titre">${esc(c.titre)}<span class="at-source">${esc(c.source)}</span></span>
+        <input type="checkbox" class="switch" ${e.actif ? "checked" : ""} aria-label="Afficher ${esc(c.titre)}">
+      </label>
+      <div class="at-reglages">
+        ${extra}
+        ${c.note ? `<p class="at-note">${esc(c.note)}</p>` : ""}
+        ${c.legende ? `<img class="at-legende-img" alt="Légende : ${esc(c.titre)}" loading="lazy" src="${c.legende}" onerror="this.remove()">` : ""}
+        <label class="at-opacite"><span>Opacité</span>
+          <input type="range" min="0" max="100" step="5" value="${Math.round(e.opacite * 100)}" aria-label="Opacité de ${esc(c.titre)}">
+          <output>${Math.round(e.opacite * 100)} %</output></label>
+        <p class="at-etat" hidden></p>
+      </div>
+    </div>`;
+  };
+
+  root.innerHTML = `
+    <aside class="at-panneau" aria-label="Couches">
+      <div class="at-entete"><h2>Couches</h2><span class="at-compte"></span>
+        <button type="button" class="icon-btn at-replier" aria-label="Replier le panneau" title="Replier le panneau">‹</button></div>
+      <div class="at-site"></div>
+      <div class="at-familles">
+        ${FAMILLES.map((f) => `<section class="at-famille"><h3>${f}</h3>${COUCHES.filter((c) => c.famille === f).map(ligne).join("")}</section>`).join("")}
+      </div>
+      <p class="at-sources">Sources : IGN (Plan, BD ORTHO®, BD TOPO®, Parcellaire Express), Géoportail de
+        l'Urbanisme, Géorisques, INPN, OpenStreetMap.</p>
+    </aside>
+    <div class="at-carte">
+      <div class="at-canvas"></div>
+      <button type="button" class="at-ouvrir icon-btn" aria-label="Afficher les couches" title="Afficher les couches">☰</button>
+      <div class="segmented at-mode" role="group" aria-label="Vue">
+        <button type="button" data-mode="2d" aria-pressed="true">2D</button>
+        <button type="button" data-mode="3d" aria-pressed="false">3D</button>
+      </div>
+      <div class="m3d-panel m3d-sun at-soleil" hidden>
+        <div class="m3d-sun-row">
+          <input type="date" class="m3d-date" aria-label="Date">
+          <span class="m3d-presets">
+            <button type="button" data-md="12-21">21 déc.</button>
+            <button type="button" data-md="03-20">21 mars</button>
+            <button type="button" data-md="06-21">21 juin</button>
+          </span>
+        </div>
+        <input type="range" class="m3d-hour" min="5" max="22" step="0.25" value="14" aria-label="Heure légale">
+        <p class="m3d-sun-info" aria-live="polite"></p>
+      </div>
+      <div class="at-vide" hidden>
+        <p>Lancez d'abord une analyse dans l'onglet <a href="#diagnostic">Diagnostic</a> :
+        l'atelier reprend son site et son périmètre.</p>
+      </div>
+    </div>`;
+
+  const q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const canvasEl = q<HTMLElement>(".at-canvas");
+  const dateInput = q<HTMLInputElement>(".m3d-date");
+  const hourInput = q<HTMLInputElement>(".m3d-hour");
+  const sunInfo = q<HTMLElement>(".m3d-sun-info");
+  const soleilPanel = q<HTMLElement>(".at-soleil");
+  const vide = q<HTMLElement>(".at-vide");
+  dateInput.value = today();
+
+  // Panneau repliable (fermé par défaut sur téléphone).
+  const setPanneau = (ouvert: boolean) => root.classList.toggle("panneau-ferme", !ouvert);
+  setPanneau(!window.matchMedia("(max-width: 800px)").matches);
+  q<HTMLButtonElement>(".at-replier").addEventListener("click", () => {
+    setPanneau(false);
+    setTimeout(() => map.resize(), 220);
+  });
+  q<HTMLButtonElement>(".at-ouvrir").addEventListener("click", () => {
+    setPanneau(true);
+    setTimeout(() => map.resize(), 220);
+  });
+
+  // --- Carte -------------------------------------------------------------------
+  const vecteur = (): maplibregl.GeoJSONSourceSpecification => ({ type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  const raster = (c: CoucheDef): maplibregl.LayerSpecification => ({
+    id: c.id,
+    type: "raster",
+    source: c.id,
+    layout: { visibility: etat.get(c.id)!.actif ? "visible" : "none" },
+    paint: { "raster-opacity": etat.get(c.id)!.opacite, "raster-fade-duration": 150 },
+  });
+  const rasters = COUCHES.filter((c) => c.tuiles);
+
+  const map = new maplibregl.Map({
+    container: canvasEl,
+    style: {
+      version: 8,
+      sources: {
+        plan: { type: "raster", tiles: [FONDS.plan.tuiles], tileSize: 256, maxzoom: 19, attribution: "© IGN" },
+        photo: { type: "raster", tiles: [FONDS.photo.tuiles], tileSize: 256, maxzoom: 19, attribution: "© IGN" },
+        ...Object.fromEntries(
+          rasters.map((c) => [c.id, { type: "raster", tiles: [c.tuiles!], tileSize: 256, maxzoom: c.zoomMax ?? 20, attribution: c.source }]),
+        ),
+        bati: vecteur(),
+        vegetation: vecteur(),
+        arbres: vecteur(),
+        ombres: vecteur(),
+        perimetre: vecteur(),
+      },
+      layers: [
+        { id: "fond-uni", type: "background", paint: { "background-color": "#efeeea" } },
+        { id: "fond-plan", type: "raster", source: "plan", paint: { "raster-opacity": 0.7 } },
+        { id: "fond-photo", type: "raster", source: "photo", layout: { visibility: "none" }, paint: { "raster-opacity": 0.7 } },
+        ...rasters.filter((c) => c.id !== "cadastre").map(raster),
+        { id: "vegetation", type: "fill", source: "vegetation", layout: { visibility: "none" }, paint: { "fill-color": "#5f9e4b", "fill-opacity": 0.5 } },
+        { id: "ombres", type: "fill", source: "ombres", layout: { visibility: "none" }, paint: { "fill-color": "#1f2a44", "fill-opacity": 0.4 } },
+        raster(COUCHES.find((c) => c.id === "cadastre")!),
+        { id: "bati-2d", type: "fill", source: "bati", paint: { "fill-color": NEUTRE, "fill-opacity": 1, "fill-outline-color": "rgba(60,60,60,0.45)" } },
+        {
+          id: "bati-3d",
+          type: "fill-extrusion",
+          source: "bati",
+          layout: { visibility: "none" },
+          paint: { "fill-extrusion-color": NEUTRE, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": true },
+        },
+        {
+          id: "arbres",
+          type: "circle",
+          source: "arbres",
+          paint: {
+            "circle-color": "#3f8f3a",
+            "circle-opacity": 0.85,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1,
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 1.5, 17, 4, 19, 9],
+          },
+        },
+        { id: "perimetre", type: "line", source: "perimetre", paint: { "line-color": "#3a3a3c", "line-width": 1.5, "line-dasharray": [3, 2] } },
+      ],
+    },
+    center: [2.5, 46.6],
+    zoom: 5,
+    maxPitch: 75,
+    attributionControl: { compact: true },
+    canvasContextAttributes: { preserveDrawingBuffer: true }, // exports à venir (mise en page)
+  });
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 140 }), "bottom-right");
+  const pret = new Promise<void>((r) => map.once("load", () => r()));
+
+  // --- Application de l'état aux couches ---------------------------------------
+  const PROP: Record<string, string> = { raster: "raster-opacity", fill: "fill-opacity", circle: "circle-opacity", line: "line-opacity", "fill-extrusion": "fill-extrusion-opacity" };
+  function couchesMap(id: string): string[] {
+    if (id === "fond") return [];
+    if (id === "bati") return ["bati-2d", "bati-3d"];
+    return [id];
+  }
+  function appliquer(id: string): void {
+    const e = etat.get(id)!;
+    if (id === "fond") {
+      map.setLayoutProperty("fond-plan", "visibility", e.actif && fond === "plan" ? "visible" : "none");
+      map.setLayoutProperty("fond-photo", "visibility", e.actif && fond === "photo" ? "visible" : "none");
+      map.setPaintProperty("fond-plan", "raster-opacity", e.opacite);
+      map.setPaintProperty("fond-photo", "raster-opacity", e.opacite);
+    }
+    for (const lid of couchesMap(id)) {
+      const layer = map.getLayer(lid);
+      if (!layer) continue;
+      let visible = e.actif;
+      if (lid === "bati-2d") visible = e.actif && !mode3d;
+      if (lid === "bati-3d") visible = e.actif && mode3d;
+      map.setLayoutProperty(lid, "visibility", visible ? "visible" : "none");
+      const prop = PROP[layer.type];
+      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" ? Math.min(0.95, e.opacite) : e.opacite);
+      if (lid === "arbres") map.setPaintProperty(lid, "circle-stroke-opacity", e.opacite);
+    }
+    if (id === "ombres") {
+      soleilPanel.hidden = !e.actif;
+      if (e.actif) demanderOmbres();
+    }
+  }
+  function compter(): void {
+    const n = [...etat.values()].filter((e) => e.actif).length;
+    q<HTMLElement>(".at-compte").textContent = `${n} active${n > 1 ? "s" : ""}`;
+  }
+
+  // --- Coloration du bâti ----------------------------------------------------------
+  function couleurBati(): maplibregl.DataDrivenPropertyValueSpecification<string> {
+    if (coloration === "neutre") return NEUTRE;
+    if (coloration === "usage") {
+      return ["match", ["get", "usage"], ...USAGES.flatMap((u) => [u.valeur, u.color]), USAGE_AUTRE] as unknown as maplibregl.ExpressionSpecification;
+    }
+    return [
+      "case",
+      ["!", ["get", "connue"]],
+      INCONNU,
+      ["step", ["get", "h"], HAUTEURS[0].color, ...HAUTEURS.slice(0, -1).flatMap((c, i) => [c.max, HAUTEURS[i + 1].color])],
+    ] as maplibregl.ExpressionSpecification;
+  }
+  function legendeBati(): string {
+    const pastille = (color: string, label: string) => `<span><i style="background:${color}"></i>${esc(label)}</span>`;
+    if (coloration === "neutre") return "";
+    if (coloration === "usage") return USAGES.map((u) => pastille(u.color, u.valeur)).join("") + pastille(USAGE_AUTRE, "Annexe, autre ou inconnu");
+    return HAUTEURS.map((h) => pastille(h.color, `${h.label} m`)).join("") + pastille(INCONNU, `inconnue (${DEFAULT_HEIGHT_M} m supposés)`);
+  }
+  function appliquerColoration(): void {
+    map.setPaintProperty("bati-2d", "fill-color", couleurBati());
+    map.setPaintProperty("bati-3d", "fill-extrusion-color", couleurBati());
+    q<HTMLElement>("[data-legende-bati]").innerHTML = legendeBati();
+    root.querySelectorAll<HTMLButtonElement>("[data-colo]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.colo === coloration)));
+  }
+
+  // --- Interactions du panneau ---------------------------------------------------
+  root.querySelectorAll<HTMLElement>(".at-couche").forEach((el) => {
+    const id = el.dataset.couche!;
+    const e = etat.get(id)!;
+    const sw = el.querySelector<HTMLInputElement>(".switch")!;
+    const range = el.querySelector<HTMLInputElement>('input[type="range"]')!;
+    const out = el.querySelector("output")!;
+    sw.addEventListener("change", async () => {
+      e.actif = sw.checked;
+      el.classList.toggle("on", e.actif);
+      compter();
+      await pret;
+      appliquer(id);
+      if (e.actif) void chargerCouche(id);
+    });
+    range.addEventListener("input", async () => {
+      e.opacite = Number(range.value) / 100;
+      out.textContent = `${range.value} %`;
+      await pret;
+      appliquer(id);
+    });
+  });
+  root.querySelectorAll<HTMLButtonElement>("[data-fond]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      fond = b.dataset.fond as Fond;
+      root.querySelectorAll("[data-fond]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      await pret;
+      appliquer("fond");
+    }),
+  );
+  root.querySelectorAll<HTMLButtonElement>("[data-colo]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      coloration = b.dataset.colo as Coloration;
+      await pret;
+      appliquerColoration();
+    }),
+  );
+  root.querySelectorAll<HTMLButtonElement>(".at-mode button").forEach((b) =>
+    b.addEventListener("click", () => {
+      mode3d = b.dataset.mode === "3d";
+      root.querySelectorAll(".at-mode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      map.easeTo({ pitch: mode3d ? 55 : 0, bearing: mode3d ? -20 : 0, duration: 600 });
+      appliquer("bati");
+    }),
+  );
+
+  // --- Ombres (worker) ------------------------------------------------------------
+  const worker = new Worker(new URL("../map3d/shadow-worker.ts", import.meta.url), { type: "module" });
+  let site: SiteContext | null = null;
+  let demande = 0;
+  let enCours = false;
+  let enAttente = false;
+  let batimentsEnvoyes = false;
+
+  function soleil() {
+    if (!site) return null;
+    const h = Number(hourInput.value);
+    const sun = sunAtLegalTime(site.lat, site.lon, dateInput.value || today(), h);
+    const tz = sun.utcOffset === 2 ? "heure d'été" : "heure d'hiver";
+    const nuit = sun.elevationDeg <= 0.5;
+    const l10 = nuit ? 0 : Math.min(10 / Math.tan((sun.elevationDeg * Math.PI) / 180), MAX_SHADOW_M);
+    sunInfo.innerHTML = nuit
+      ? `<strong>${formatHour(h)}</strong> (${tz}) — soleil sous l'horizon`
+      : `<strong>${formatHour(h)}</strong> (${tz}) · soleil à ${sun.elevationDeg.toFixed(0)}° de hauteur,
+         azimut ${sun.azimuthDeg.toFixed(0)}° · un bâtiment de 10 m porte ${l10.toFixed(0)} m d'ombre`;
+    return sun;
+  }
+  function demanderOmbres(): void {
+    if (!etat.get("ombres")!.actif || !batimentsEnvoyes) {
+      soleil();
+      return;
+    }
+    const sun = soleil();
+    if (!sun) return;
+    if (enCours) {
+      enAttente = true;
+      return;
+    }
+    enCours = true;
+    worker.postMessage({ kind: "compute", id: ++demande, elevationDeg: sun.elevationDeg, azimuthDeg: sun.azimuthDeg } satisfies ShadowRequest);
+  }
+  worker.onmessage = (e: MessageEvent<ShadowResponse>) => {
+    enCours = false;
+    if (e.data.id === demande) {
+      (map.getSource("ombres") as maplibregl.GeoJSONSource).setData({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "MultiPolygon", coordinates: e.data.result.multiPolygon },
+      });
+    }
+    if (enAttente) {
+      enAttente = false;
+      demanderOmbres();
+    }
+  };
+  hourInput.addEventListener("input", demanderOmbres);
+  dateInput.addEventListener("change", demanderOmbres);
+  root.querySelectorAll<HTMLButtonElement>(".m3d-presets button").forEach((b) =>
+    b.addEventListener("click", () => {
+      dateInput.value = `${(dateInput.value || today()).slice(0, 4)}-${b.dataset.md}`;
+      demanderOmbres();
+    }),
+  );
+
+  // --- Données dépendant du site ---------------------------------------------------
+  const charge = new Set<string>();
+  function etatCouche(id: string, texte: string): void {
+    const p = root.querySelector<HTMLElement>(`[data-couche="${id}"] .at-etat`);
+    if (!p) return;
+    p.hidden = !texte;
+    p.textContent = texte;
+  }
+
+  async function chargerCouche(id: string): Promise<void> {
+    if (!site || charge.has(id)) return;
+    const ctx = site;
+    const r = ctx.radiusM ?? 150;
+    charge.add(id);
+    try {
+      if (id === "bati") {
+        etatCouche(id, "Chargement…");
+        const data = await fetchBuildingsWithHeight(ctx, r);
+        if (site !== ctx) return;
+        (map.getSource("bati") as maplibregl.GeoJSONSource).setData(batiGeoJSON(data));
+        const connues = data.buildings.filter((b) => b.heightM !== null).length;
+        q<HTMLElement>("[data-bati-source]").textContent =
+          data.source === "indisponible"
+            ? "Bâtiments indisponibles (BD TOPO et OpenStreetMap n'ont pas répondu)."
+            : `${data.buildings.length} bâtiments · ${BUILDING_SOURCE_LABEL[data.source]} · hauteur connue pour ${
+                data.buildings.length ? Math.round((connues / data.buildings.length) * 100) : 0
+              } %`;
+        etatCouche(id, "");
+        if (data.source === "indisponible") charge.delete(id);
+        const sb: ShadowBuilding[] = data.buildings.map((b) => ({ ring: b.polygon.map((p) => [p.lon, p.lat] as [number, number]), heightM: b.heightM }));
+        worker.postMessage({ kind: "buildings", buildings: sb, lat0: ctx.lat, lon0: ctx.lon } satisfies ShadowRequest);
+        batimentsEnvoyes = true;
+        demanderOmbres();
+      } else if (id === "ombres") {
+        await chargerCouche("bati");
+        demanderOmbres();
+      } else if (id === "arbres") {
+        etatCouche(id, "Chargement…");
+        const arbres = await fetchTrees(ctx, r);
+        if (site !== ctx) return;
+        (map.getSource("arbres") as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: arbres.map((a) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [a.lon, a.lat] } })),
+        });
+        etatCouche(id, arbres.length ? `${arbres.length} arbres recensés dans le périmètre.` : "Aucun arbre recensé dans OpenStreetMap ici (inventaire souvent incomplet).");
+      } else if (id === "vegetation") {
+        etatCouche(id, "Chargement…");
+        const fc = await fetchVegetation(ctx, r);
+        if (site !== ctx) return;
+        (map.getSource("vegetation") as maplibregl.GeoJSONSource).setData(fc);
+        etatCouche(id, fc.features?.length ? "" : "Aucune zone de végétation BD TOPO dans le périmètre.");
+      }
+    } catch {
+      charge.delete(id);
+      etatCouche(id, "Source indisponible pour le moment — ce n'est pas une absence de donnée.");
+    }
+  }
+
+  // --- Fiche d'un bâtiment ----------------------------------------------------------
+  for (const lid of ["bati-2d", "bati-3d"]) {
+    map.on("click", lid, (e) => {
+      const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
+      if (!p) return;
+      const lignes = [
+        `<strong>Hauteur :</strong> ${p.connue ? `${Number(p.h).toFixed(1)} m` : `inconnue (${DEFAULT_HEIGHT_M} m supposés)`}`,
+        p.usage ? `<strong>Usage :</strong> ${esc(String(p.usage))}` : "",
+        p.etages ? `<strong>Étages :</strong> ${p.etages}` : "",
+        p.logements ? `<strong>Logements :</strong> ${p.logements}` : "",
+      ].filter(Boolean);
+      new maplibregl.Popup({ maxWidth: "240px" }).setLngLat(e.lngLat).setHTML(`<div class="m3d-popup">${lignes.join("<br>")}</div>`).addTo(map);
+    });
+    map.on("mouseenter", lid, () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", lid, () => (map.getCanvas().style.cursor = ""));
+  }
+
+  // --- Site ----------------------------------------------------------------------------
+  let marker: maplibregl.Marker | null = null;
+  async function setSite(ctx: SiteContext): Promise<void> {
+    await pret;
+    const memePoint = site && site.lat === ctx.lat && site.lon === ctx.lon;
+    site = ctx;
+    vide.hidden = true;
+    q<HTMLElement>(".at-site").textContent = `${ctx.label}${ctx.radiusM !== null ? ` · périmètre ${ctx.radiusM} m` : " · échelle parcelle"}`;
+    (map.getSource("perimetre") as maplibregl.GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: ctx.radiusM !== null ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: cercle(ctx.lat, ctx.lon, ctx.radiusM) } }] : [],
+    });
+    marker?.remove();
+    marker = new maplibregl.Marker({ element: repere() }).setLngLat([ctx.lon, ctx.lat]).addTo(map);
+    if (!memePoint) {
+      const r = ctx.radiusM ?? 150;
+      map.jumpTo({ center: [ctx.lon, ctx.lat], zoom: r > 450 ? 15.3 : r > 200 ? 16.2 : 17, pitch: mode3d ? 55 : 0, bearing: mode3d ? -20 : 0 });
+    }
+    // Les données vectorielles dépendent du point et du rayon : on recharge.
+    charge.clear();
+    batimentsEnvoyes = false;
+    for (const id of ["bati", "arbres", "vegetation", "ombres"]) if (etat.get(id)!.actif) void chargerCouche(id);
+  }
+
+  void pret.then(() => {
+    COUCHES.forEach((c) => appliquer(c.id));
+    appliquerColoration();
+    compter();
+    if (!site) vide.hidden = false;
+  });
+
+  return { setSite, resize: () => map.resize() };
+}
