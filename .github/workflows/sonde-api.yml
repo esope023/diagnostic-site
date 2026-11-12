@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with: { ref: claude/climat-fiche-graphique }
+        with: { ref: claude/climat-encarts }
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci && npm run build
@@ -44,11 +44,14 @@ jobs:
                 await card(p).locator('.module-toggle').click();
                 await p.waitForTimeout(1500);
                 log(name, 'TEXTE', (await card(p).innerText()).replace(/\n+/g,' ¶ ').slice(0,1800));
-                await p.waitForFunction(()=>!document.querySelector('[data-bandes] .placeholder'), null, {timeout:150000}).catch(()=>log(name,'bandes encore en chargement'));
-                log(name, 'BANDES', (await p.locator('[data-bandes]').innerText()).slice(0,400));
-                await card(p).screenshot({ path:`shots/${name}-clair.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
+                await p.waitForFunction(()=>!document.querySelector('[data-reference] .placeholder'), null, {timeout:60000}).catch(()=>log(name,'encarts en chargement'));
+                log(name, 'ENCARTS', (await p.locator('[data-reference]').innerText()).replace(/\n+/g,' ¶ ').slice(0,1500));
+                for (const m of ['Jours ≥ 30 °C','Température']) { await p.click(`[data-reference] button:has-text("${m}")`).catch(()=>{}); await p.waitForTimeout(300); log(name, m, (await p.locator('[data-rk-corps]').innerText().catch(()=> '')).replace(/\n+/g,' ').slice(0,300)); }
+                await p.click('[data-reference] button:has-text("Nuits tropicales")').catch(()=>{});
+                await p.locator('[data-reference]').scrollIntoViewIfNeeded();
+                await p.locator('[data-reference]').screenshot({ path:`shots/${name}-clair.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
                 await p.click('#theme-btn'); await p.click('#theme-btn'); await p.waitForTimeout(800);
-                await card(p).screenshot({ path:`shots/${name}-sombre.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
+                await p.locator('[data-reference]').screenshot({ path:`shots/${name}-sombre.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
               } catch(e) { log(name,'ECHEC', e.message.split('\n')[0]); }
               await c.close();
             }
