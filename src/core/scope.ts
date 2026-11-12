@@ -11,7 +11,7 @@ export interface RadiusPreset {
 export const RADIUS_PRESETS: RadiusPreset[] = [
   { value: "parcelle", label: "Parcelle", meters: null },
   { value: "100", label: "100 m", meters: 100 },
-  { value: "300", label: "300 m (défaut)", meters: 300 },
+  { value: "300", label: "300 m", meters: 300 },
   { value: "600", label: "600 m", meters: 600 },
   { value: "1000", label: "1000 m", meters: 1000 },
 ];
