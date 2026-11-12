@@ -3,61 +3,34 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  e2e:
-    strategy:
-      matrix:
-        include:
-          - { q: '2 rue jean 13004 marseille', name: marseille, w: 1440 }
-          - { q: 'place de la mairie 35000 rennes', name: rennes, w: 390 }
+  couches:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-        with: { ref: claude/climat-encarts }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci && npm run build
-        env: { GH_PAGES_BASE: /diagnostic-site/ }
-      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
-      - name: Captures climat
+      - name: Capacités WMTS / WMS
         shell: bash
         run: |
           set +e
-          mkdir -p shots
-          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
-          cat > t.cjs <<'JS'
-          const { chromium } = require('playwright');
-          (async () => {
-            const b = await chromium.launch();
-            const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
-            const card=(p)=>p.locator('.module-card').filter({ has: p.locator('.module-title', { hasText: /^Climat$/ }) });
-            async function site(q, name, width) {
-              const c = await b.newContext({ viewport:{width, height:1000} }); const p = await c.newPage();
-              p.on('response', r=>{ const u=r.url(); if (/open-meteo/.test(u)) log(name,'HTTP', r.status(), u.replace(/latitude=[^&]+&longitude=[^&]+/,'').slice(0,110)); });
-              p.on('pageerror', e=>log(name,'PAGEERROR', e.message.slice(0,200)));
-              try {
-                await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 });
-                await p.fill('#search-input', q);
-                await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log(name,'pas de suggestions'));
-                await p.keyboard.press('Enter');
-                await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.querySelector('.module-title')?.textContent==='Climat'); return c && c.dataset.status && c.dataset.status!=='loading'; }, null, {timeout:400000}).catch(()=>log(name,'attente climat'));
-                await card(p).locator('.module-toggle').click();
-                await p.waitForTimeout(1500);
-                log(name, 'TEXTE', (await card(p).innerText()).replace(/\n+/g,' ¶ ').slice(0,1800));
-                await p.waitForFunction(()=>!document.querySelector('[data-reference] .placeholder'), null, {timeout:60000}).catch(()=>log(name,'encarts en chargement'));
-                log(name, 'ENCARTS', (await p.locator('[data-reference]').innerText()).replace(/\n+/g,' ¶ ').slice(0,1500));
-                for (const m of ['Jours ≥ 30 °C','Température']) { await p.click(`[data-reference] button:has-text("${m}")`).catch(()=>{}); await p.waitForTimeout(300); log(name, m, (await p.locator('[data-rk-corps]').innerText().catch(()=> '')).replace(/\n+/g,' ').slice(0,300)); }
-                await p.click('[data-reference] button:has-text("Nuits tropicales")').catch(()=>{});
-                await p.locator('[data-reference]').scrollIntoViewIfNeeded();
-                await p.locator('[data-reference]').screenshot({ path:`shots/${name}-clair.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
-                await p.click('#theme-btn'); await p.click('#theme-btn'); await p.waitForTimeout(800);
-                await p.locator('[data-reference]').screenshot({ path:`shots/${name}-sombre.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
-              } catch(e) { log(name,'ECHEC', e.message.split('\n')[0]); }
-              await c.close();
-            }
-            await site(process.env.Q, process.env.NAME, Number(process.env.W));
-            await b.close();
-          })();
-          JS
-          Q='${{ matrix.q }}' NAME=${{ matrix.name }} W=${{ matrix.w }} node t.cjs
-          cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
+          O='-H Origin:https://esope023.github.io'
+          curl -s "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities" -o wmts.xml; ls -la wmts.xml
+          echo "== WMTS couches utiles"; grep -o '<ows:Identifier>[^<]*</ows:Identifier>' wmts.xml | sed 's/<[^>]*>//g' | grep -iE "CADASTR|PROTECTED|URBAN|PLU|ZONE|NATURA|ZNIEFF|ARGILE|RISQ|BATI|HYDRO|FOREST|VEGET|BDTOPO|LIDAR|ELEVATION|PLANIGN|ORTHOIMAGERY.ORTHOPHOTOS$" | sort -u | head -80
+          echo "== Styles / formats cadastre"; python3 - <<'PY'
+          import re
+          x=open('wmts.xml').read()
+          for name in ['CADASTRALPARCELS.PARCELLAIRE_EXPRESS','PROTECTEDAREAS.ZNIEFF1','PROTECTEDAREAS.SIC','PROTECTEDAREAS.ZPS','PROTECTEDAREAS.APB','PROTECTEDAREAS.PN','PROTECTEDAREAS.PNR','PROTECTEDAREAS.RN']:
+              i=x.find('<ows:Identifier>'+name+'</ows:Identifier>')
+              if i<0: print(name,'ABSENT'); continue
+              j=x.rfind('<Layer>',0,i); k=x.find('</Layer>',i)
+              blk=x[j:k]
+              print(name, re.findall(r'<Format>([^<]*)',blk), re.findall(r'<Style[^>]*>\s*<ows:Title>[^<]*</ows:Title>\s*<ows:Abstract>[^<]*</ows:Abstract>\s*<ows:Identifier>([^<]*)',blk) or re.findall(r'<Style[^>]*>.*?<ows:Identifier>([^<]*)',blk,re.S)[:3], re.findall(r'<TileMatrixSet>([^<]*)',blk)[:2])
+          PY
+          curl -s "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsv.xml; ls -la wmsv.xml
+          echo "== WMS-V couches (urbanisme, servitudes)"; grep -o '<Name>[^<]*</Name>' wmsv.xml | sed 's/<[^>]*>//g' | grep -iE "du|psmv|prescription|info|zone|sup|assiette|generateur|plu|urba" | sort -u | head -60
+          curl -s "https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsr.xml; ls -la wmsr.xml
+          echo "== WMS-R couches utiles"; grep -o '<Name>[^<]*</Name>' wmsr.xml | sed 's/<[^>]*>//g' | grep -iE "CADASTR|PROTECTED|URBAN|PLU|NATURA|ZNIEFF|ARGIL|RISQ|VEGET|FOREST|LIDAR|MNS|MNH|HEIGHT" | sort -u | head -60
+          echo "== Géorisques WMS"; curl -s "https://www.georisques.gouv.fr/services?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o geor.xml; ls -la geor.xml; grep -o '<Name>[^<]*</Name>' geor.xml | sed 's/<[^>]*>//g' | grep -iE "ARG|ALEA|INOND|PPR|CAVITE|MVT|SIS" | head -40
+          echo "== CORS"
+          for u in \
+            "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=PCI%20vecteur&TILEMATRIXSET=PM&TILEMATRIX=17&TILEROW=48120&TILECOL=67526&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&FORMAT=image/png" \
+            "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=zone_secteur&STYLES=&CRS=EPSG:3857&BBOX=597000,5370000,598000,5371000&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true" \
+            "https://www.georisques.gouv.fr/services?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ALEARG&STYLES=&CRS=EPSG:3857&BBOX=597000,5370000,598000,5371000&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true"; do
+            echo "-- $u" | cut -c1-140; curl -s -D - -o /tmp/t.bin $O "$u" | grep -iE "^HTTP|content-type|access-control-allow-origin"; file /tmp/t.bin | cut -c1-80; done
