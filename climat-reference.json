@@ -1,6 +1,6 @@
 {
  "version": 1,
- "majLe": "2026-11-12T20:42:37.248Z",
+ "majLe": "2026-11-12T21:37:33.326Z",
  "methode": "ERA5 1991-2020 (Open-Meteo archive) ; horizon 2050 = 2036-2050, méthode des écarts sur EC-Earth3P-HR, MRI-AGCM3-2-S et CMCC-CM2-VHR4 (Open-Meteo Climate API). Indicateurs identiques au module Climat du site.",
  "villes": [
   {
@@ -178,266 +178,1081 @@
     "joursChaleur35": 3.5,
     "vaguesChaleur": 3.1
    },
-   "modeles": {}
+   "h2050": {
+    "tMoyenneAnnuelle": 15.2,
+    "djuChauffage": 1606,
+    "djuClim": 586,
+    "nuitsTropicales": 21.9,
+    "joursChaleur30": 39.7,
+    "joursChaleur35": 10.5,
+    "vaguesChaleur": 4.9,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 15.2,
+      "max": 15.2
+     },
+     "nuitsTropicales": {
+      "min": 18.2,
+      "max": 25.5
+     },
+     "joursChaleur30": {
+      "min": 37.3,
+      "max": 40.9
+     }
+    }
+   }
   },
   {
    "nom": "Lille",
    "region": "Hauts-de-France",
    "pays": "FR",
    "lat": 50.629,
-   "lon": 3.057
+   "lon": 3.057,
+   "actuel": {
+    "tMoyenneAnnuelle": 10.9,
+    "djuChauffage": 2702,
+    "djuClim": 99,
+    "nuitsTropicales": 0.6,
+    "joursChaleur30": 3.1,
+    "joursChaleur35": 0.1,
+    "vaguesChaleur": 0.2
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.2,
+    "djuChauffage": 2336,
+    "djuClim": 215.3,
+    "nuitsTropicales": 3.6,
+    "joursChaleur30": 10.2,
+    "joursChaleur35": 1.3,
+    "vaguesChaleur": 1.2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.2,
+      "max": 12.2
+     },
+     "nuitsTropicales": {
+      "min": 2.6,
+      "max": 5.4
+     },
+     "joursChaleur30": {
+      "min": 8.4,
+      "max": 12.6
+     }
+    }
+   }
   },
   {
    "nom": "Nantes",
    "region": "Pays de la Loire",
    "pays": "FR",
    "lat": 47.218,
-   "lon": -1.554
+   "lon": -1.554,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.5,
+    "djuChauffage": 2169,
+    "djuClim": 171,
+    "nuitsTropicales": 1.7,
+    "joursChaleur30": 5.7,
+    "joursChaleur35": 0.4,
+    "vaguesChaleur": 0.6
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.8,
+    "djuChauffage": 1850.7,
+    "djuClim": 340.3,
+    "nuitsTropicales": 9.7,
+    "joursChaleur30": 17.5,
+    "joursChaleur35": 3.5,
+    "vaguesChaleur": 2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.8,
+      "max": 13.9
+     },
+     "nuitsTropicales": {
+      "min": 8.5,
+      "max": 11.7
+     },
+     "joursChaleur30": {
+      "min": 15.6,
+      "max": 18.7
+     }
+    }
+   }
   },
   {
    "nom": "Strasbourg",
    "region": "Grand Est",
    "pays": "FR",
    "lat": 48.573,
-   "lon": 7.752
+   "lon": 7.752,
+   "actuel": {
+    "tMoyenneAnnuelle": 10.9,
+    "djuChauffage": 2828,
+    "djuClim": 222,
+    "nuitsTropicales": 3.3,
+    "joursChaleur30": 9.8,
+    "joursChaleur35": 0.6,
+    "vaguesChaleur": 1
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.4,
+    "djuChauffage": 2463,
+    "djuClim": 410.3,
+    "nuitsTropicales": 15.3,
+    "joursChaleur30": 23.9,
+    "joursChaleur35": 3.4,
+    "vaguesChaleur": 3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.3,
+      "max": 12.6
+     },
+     "nuitsTropicales": {
+      "min": 9.9,
+      "max": 23.2
+     },
+     "joursChaleur30": {
+      "min": 21,
+      "max": 29
+     }
+    }
+   }
   },
   {
    "nom": "Rennes",
    "region": "Bretagne",
    "pays": "FR",
    "lat": 48.111,
-   "lon": -1.68
+   "lon": -1.68,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.9,
+    "djuChauffage": 2356,
+    "djuClim": 114,
+    "nuitsTropicales": 0.7,
+    "joursChaleur30": 3.3,
+    "joursChaleur35": 0.2,
+    "vaguesChaleur": 0.4
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.2,
+    "djuChauffage": 2025,
+    "djuClim": 233,
+    "nuitsTropicales": 3.6,
+    "joursChaleur30": 10.8,
+    "joursChaleur35": 2,
+    "vaguesChaleur": 1.4,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.1,
+      "max": 13.2
+     },
+     "nuitsTropicales": {
+      "min": 2.8,
+      "max": 4.5
+     },
+     "joursChaleur30": {
+      "min": 8.9,
+      "max": 12
+     }
+    }
+   }
   },
   {
    "nom": "Rouen",
    "region": "Normandie",
    "pays": "FR",
    "lat": 49.443,
-   "lon": 1.099
+   "lon": 1.099,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.3,
+    "djuChauffage": 2552,
+    "djuClim": 107,
+    "nuitsTropicales": 0.9,
+    "joursChaleur30": 3.1,
+    "joursChaleur35": 0.3,
+    "vaguesChaleur": 0.3
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.6,
+    "djuChauffage": 2198,
+    "djuClim": 229.7,
+    "nuitsTropicales": 5,
+    "joursChaleur30": 10.8,
+    "joursChaleur35": 1.8,
+    "vaguesChaleur": 1.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.5,
+      "max": 12.7
+     },
+     "nuitsTropicales": {
+      "min": 4.1,
+      "max": 6.6
+     },
+     "joursChaleur30": {
+      "min": 8.2,
+      "max": 12.9
+     }
+    }
+   }
   },
   {
    "nom": "Dijon",
    "region": "Bourgogne-Franche-Comté",
    "pays": "FR",
    "lat": 47.322,
-   "lon": 5.041
+   "lon": 5.041,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.3,
+    "djuChauffage": 2687,
+    "djuClim": 231,
+    "nuitsTropicales": 3.2,
+    "joursChaleur30": 10.5,
+    "joursChaleur35": 1,
+    "vaguesChaleur": 1.4
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.8,
+    "djuChauffage": 2329,
+    "djuClim": 422.7,
+    "nuitsTropicales": 14.7,
+    "joursChaleur30": 25.1,
+    "joursChaleur35": 4.6,
+    "vaguesChaleur": 3.2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.7,
+      "max": 13
+     },
+     "nuitsTropicales": {
+      "min": 10.8,
+      "max": 21.8
+     },
+     "joursChaleur30": {
+      "min": 20,
+      "max": 31.6
+     }
+    }
+   }
   },
   {
    "nom": "Orléans",
    "region": "Centre-Val de Loire",
    "pays": "FR",
    "lat": 47.903,
-   "lon": 1.909
+   "lon": 1.909,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.8,
+    "djuChauffage": 2473,
+    "djuClim": 204,
+    "nuitsTropicales": 2.5,
+    "joursChaleur30": 8.3,
+    "joursChaleur35": 1,
+    "vaguesChaleur": 0.8
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.3,
+    "djuChauffage": 2119.3,
+    "djuClim": 402,
+    "nuitsTropicales": 13.4,
+    "joursChaleur30": 22.7,
+    "joursChaleur35": 4.5,
+    "vaguesChaleur": 2.7,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.2,
+      "max": 13.3
+     },
+     "nuitsTropicales": {
+      "min": 9.7,
+      "max": 18.2
+     },
+     "joursChaleur30": {
+      "min": 21.6,
+      "max": 24.7
+     }
+    }
+   }
   },
   {
    "nom": "Ajaccio",
    "region": "Corse",
    "pays": "FR",
    "lat": 41.919,
-   "lon": 8.738
+   "lon": 8.738,
+   "actuel": {
+    "tMoyenneAnnuelle": 16.3,
+    "djuChauffage": 1282,
+    "djuClim": 674,
+    "nuitsTropicales": 51.1,
+    "joursChaleur30": 16.5,
+    "joursChaleur35": 0.5,
+    "vaguesChaleur": 2
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 17.8,
+    "djuChauffage": 1029.7,
+    "djuClim": 958,
+    "nuitsTropicales": 80.1,
+    "joursChaleur30": 40.1,
+    "joursChaleur35": 3.2,
+    "vaguesChaleur": 4.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 17.7,
+      "max": 17.8
+     },
+     "nuitsTropicales": {
+      "min": 78.6,
+      "max": 82.2
+     },
+     "joursChaleur30": {
+      "min": 36.8,
+      "max": 42.2
+     }
+    }
+   }
   },
   {
    "nom": "Montpellier",
    "region": "Occitanie",
    "pays": "FR",
    "lat": 43.611,
-   "lon": 3.877
+   "lon": 3.877,
+   "actuel": {
+    "tMoyenneAnnuelle": 14.8,
+    "djuChauffage": 1705,
+    "djuClim": 519,
+    "nuitsTropicales": 22.3,
+    "joursChaleur30": 21.8,
+    "joursChaleur35": 0.6,
+    "vaguesChaleur": 2.9
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 16.4,
+    "djuChauffage": 1407.7,
+    "djuClim": 813,
+    "nuitsTropicales": 53.9,
+    "joursChaleur30": 47.1,
+    "joursChaleur35": 9.5,
+    "vaguesChaleur": 4.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 16.3,
+      "max": 16.6
+     },
+     "nuitsTropicales": {
+      "min": 52.8,
+      "max": 55.5
+     },
+     "joursChaleur30": {
+      "min": 43.9,
+      "max": 49.2
+     }
+    }
+   }
   },
   {
    "nom": "Nice",
    "region": "Provence-Alpes-Côte d'Azur",
    "pays": "FR",
    "lat": 43.71,
-   "lon": 7.262
+   "lon": 7.262,
+   "actuel": {
+    "tMoyenneAnnuelle": 15.5,
+    "djuChauffage": 1500,
+    "djuClim": 590,
+    "nuitsTropicales": 45.1,
+    "joursChaleur30": 7.5,
+    "joursChaleur35": 0,
+    "vaguesChaleur": 0.8
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 17,
+    "djuChauffage": 1223.3,
+    "djuClim": 849,
+    "nuitsTropicales": 76.2,
+    "joursChaleur30": 23.7,
+    "joursChaleur35": 1.1,
+    "vaguesChaleur": 2.8,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 16.8,
+      "max": 17.2
+     },
+     "nuitsTropicales": {
+      "min": 74.2,
+      "max": 78.6
+     },
+     "joursChaleur30": {
+      "min": 20.4,
+      "max": 28.9
+     }
+    }
+   }
   },
   {
    "nom": "Séville",
    "region": "Andalousie",
    "pays": "ES",
    "lat": 37.389,
-   "lon": -5.984
+   "lon": -5.984,
+   "actuel": {
+    "tMoyenneAnnuelle": 18.8,
+    "djuChauffage": 930,
+    "djuClim": 1216,
+    "nuitsTropicales": 66.1,
+    "joursChaleur30": 109.2,
+    "joursChaleur35": 46.5,
+    "vaguesChaleur": 6.8
+   }
   },
   {
    "nom": "Madrid",
    "region": "Communauté de Madrid",
    "pays": "ES",
    "lat": 40.417,
-   "lon": -3.704
+   "lon": -3.704,
+   "actuel": {
+    "tMoyenneAnnuelle": 14.3,
+    "djuChauffage": 2075,
+    "djuClim": 734,
+    "nuitsTropicales": 20.8,
+    "joursChaleur30": 67.6,
+    "joursChaleur35": 15.2,
+    "vaguesChaleur": 6.4
+   }
   },
   {
    "nom": "Barcelone",
    "region": "Catalogne",
    "pays": "ES",
    "lat": 41.389,
-   "lon": 2.159
+   "lon": 2.159,
+   "actuel": {
+    "tMoyenneAnnuelle": 15.6,
+    "djuChauffage": 1436,
+    "djuClim": 576,
+    "nuitsTropicales": 47.7,
+    "joursChaleur30": 8.1,
+    "joursChaleur35": 0.1,
+    "vaguesChaleur": 1.1
+   }
   },
   {
    "nom": "Valence",
    "region": "Communauté valencienne",
    "pays": "ES",
    "lat": 39.47,
-   "lon": -0.376
+   "lon": -0.376,
+   "actuel": {
+    "tMoyenneAnnuelle": 17.6,
+    "djuChauffage": 1039,
+    "djuClim": 885,
+    "nuitsTropicales": 67.3,
+    "joursChaleur30": 49.8,
+    "joursChaleur35": 3.6,
+    "vaguesChaleur": 5.8
+   }
   },
   {
    "nom": "Bilbao",
    "region": "Pays basque",
    "pays": "ES",
    "lat": 43.263,
-   "lon": -2.935
+   "lon": -2.935,
+   "actuel": {
+    "tMoyenneAnnuelle": 14.3,
+    "djuChauffage": 1565,
+    "djuClim": 210,
+    "nuitsTropicales": 4.2,
+    "joursChaleur30": 3.1,
+    "joursChaleur35": 0.5,
+    "vaguesChaleur": 0.2
+   }
   },
   {
    "nom": "Lisbonne",
    "region": "Lisbonne",
    "pays": "PT",
    "lat": 38.722,
-   "lon": -9.139
+   "lon": -9.139,
+   "actuel": {
+    "tMoyenneAnnuelle": 16.4,
+    "djuChauffage": 998,
+    "djuClim": 428,
+    "nuitsTropicales": 11.2,
+    "joursChaleur30": 14.3,
+    "joursChaleur35": 0.9,
+    "vaguesChaleur": 1.6
+   }
   },
   {
    "nom": "Porto",
    "region": "Nord",
    "pays": "PT",
    "lat": 41.15,
-   "lon": -8.611
+   "lon": -8.611,
+   "actuel": {
+    "tMoyenneAnnuelle": 14.9,
+    "djuChauffage": 1427,
+    "djuClim": 310,
+    "nuitsTropicales": 6.1,
+    "joursChaleur30": 14.7,
+    "joursChaleur35": 1.2,
+    "vaguesChaleur": 2
+   }
   },
   {
    "nom": "Rome",
    "region": "Latium",
    "pays": "IT",
    "lat": 41.903,
-   "lon": 12.496
+   "lon": 12.496,
+   "actuel": {
+    "tMoyenneAnnuelle": 15.6,
+    "djuChauffage": 1565,
+    "djuClim": 694,
+    "nuitsTropicales": 31.5,
+    "joursChaleur30": 45.6,
+    "joursChaleur35": 3.7,
+    "vaguesChaleur": 4.3
+   }
   },
   {
    "nom": "Milan",
    "region": "Lombardie",
    "pays": "IT",
    "lat": 45.464,
-   "lon": 9.19
+   "lon": 9.19,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.9,
+    "djuChauffage": 2363,
+    "djuClim": 498,
+    "nuitsTropicales": 19.1,
+    "joursChaleur30": 25.2,
+    "joursChaleur35": 1.5,
+    "vaguesChaleur": 3.4
+   }
   },
   {
    "nom": "Florence",
    "region": "Toscane",
    "pays": "IT",
    "lat": 43.77,
-   "lon": 11.256
+   "lon": 11.256,
+   "actuel": {
+    "tMoyenneAnnuelle": 14.4,
+    "djuChauffage": 1922,
+    "djuClim": 603,
+    "nuitsTropicales": 20.5,
+    "joursChaleur30": 41.5,
+    "joursChaleur35": 4.1,
+    "vaguesChaleur": 5
+   }
   },
   {
    "nom": "Naples",
    "region": "Campanie",
    "pays": "IT",
    "lat": 40.852,
-   "lon": 14.268
+   "lon": 14.268,
+   "actuel": {
+    "tMoyenneAnnuelle": 16.3,
+    "djuChauffage": 1328,
+    "djuClim": 723,
+    "nuitsTropicales": 53.5,
+    "joursChaleur30": 29.4,
+    "joursChaleur35": 0.2,
+    "vaguesChaleur": 3.8
+   }
   },
   {
    "nom": "Palerme",
    "region": "Sicile",
    "pays": "IT",
    "lat": 38.116,
-   "lon": 13.361
+   "lon": 13.361,
+   "actuel": {
+    "tMoyenneAnnuelle": 18.3,
+    "djuChauffage": 891,
+    "djuClim": 986,
+    "nuitsTropicales": 90.8,
+    "joursChaleur30": 41.2,
+    "joursChaleur35": 3.6,
+    "vaguesChaleur": 4.9
+   }
   },
   {
    "nom": "Athènes",
    "region": "Attique",
    "pays": "GR",
    "lat": 37.984,
-   "lon": 23.728
+   "lon": 23.728,
+   "actuel": {
+    "tMoyenneAnnuelle": 17.6,
+    "djuChauffage": 1246,
+    "djuClim": 1114,
+    "nuitsTropicales": 80.8,
+    "joursChaleur30": 82.2,
+    "joursChaleur35": 13.9,
+    "vaguesChaleur": 6.8
+   }
   },
   {
    "nom": "Tunis",
    "region": "Tunis",
    "pays": "TN",
    "lat": 36.806,
-   "lon": 10.181
+   "lon": 10.181,
+   "actuel": {
+    "tMoyenneAnnuelle": 18.6,
+    "djuChauffage": 841,
+    "djuClim": 1073,
+    "nuitsTropicales": 81.6,
+    "joursChaleur30": 81.3,
+    "joursChaleur35": 18.9,
+    "vaguesChaleur": 7.2
+   }
   },
   {
    "nom": "Alger",
    "region": "Alger",
    "pays": "DZ",
    "lat": 36.754,
-   "lon": 3.059
+   "lon": 3.059,
+   "actuel": {
+    "tMoyenneAnnuelle": 18,
+    "djuChauffage": 922,
+    "djuClim": 941,
+    "nuitsTropicales": 58,
+    "joursChaleur30": 65.5,
+    "joursChaleur35": 10,
+    "vaguesChaleur": 6.3
+   }
   },
   {
    "nom": "Grenoble",
    "region": "Auvergne-Rhône-Alpes",
    "pays": "FR",
    "lat": 45.188,
-   "lon": 5.724
+   "lon": 5.724,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.3,
+    "djuChauffage": 2446,
+    "djuClim": 380,
+    "nuitsTropicales": 6.3,
+    "joursChaleur30": 17,
+    "joursChaleur35": 1,
+    "vaguesChaleur": 2.2
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.9,
+    "djuChauffage": 2079,
+    "djuClim": 604.3,
+    "nuitsTropicales": 24.5,
+    "joursChaleur30": 34.4,
+    "joursChaleur35": 6,
+    "vaguesChaleur": 4.2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.9,
+      "max": 13.9
+     },
+     "nuitsTropicales": {
+      "min": 20,
+      "max": 27.7
+     },
+     "joursChaleur30": {
+      "min": 29.7,
+      "max": 36.9
+     }
+    }
+   }
   },
   {
    "nom": "Clermont-Ferrand",
    "region": "Auvergne-Rhône-Alpes",
    "pays": "FR",
    "lat": 45.778,
-   "lon": 3.087
+   "lon": 3.087,
+   "actuel": {
+    "tMoyenneAnnuelle": 10.8,
+    "djuChauffage": 2795,
+    "djuClim": 179,
+    "nuitsTropicales": 1.1,
+    "joursChaleur30": 9.3,
+    "joursChaleur35": 0.9,
+    "vaguesChaleur": 1.1
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.3,
+    "djuChauffage": 2394.7,
+    "djuClim": 341.7,
+    "nuitsTropicales": 9.3,
+    "joursChaleur30": 21.4,
+    "joursChaleur35": 3.4,
+    "vaguesChaleur": 2.6,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.3,
+      "max": 12.3
+     },
+     "nuitsTropicales": {
+      "min": 6,
+      "max": 13.6
+     },
+     "joursChaleur30": {
+      "min": 17.5,
+      "max": 23.9
+     }
+    }
+   }
   },
   {
    "nom": "Besançon",
    "region": "Bourgogne-Franche-Comté",
    "pays": "FR",
    "lat": 47.238,
-   "lon": 6.024
+   "lon": 6.024,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.4,
+    "djuChauffage": 2646,
+    "djuClim": 250,
+    "nuitsTropicales": 5.1,
+    "joursChaleur30": 10.4,
+    "joursChaleur35": 0.9,
+    "vaguesChaleur": 1.3
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.9,
+    "djuChauffage": 2282.7,
+    "djuClim": 442.7,
+    "nuitsTropicales": 18.2,
+    "joursChaleur30": 25.4,
+    "joursChaleur35": 4.1,
+    "vaguesChaleur": 3.2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.9,
+      "max": 13
+     },
+     "nuitsTropicales": {
+      "min": 14.2,
+      "max": 24.3
+     },
+     "joursChaleur30": {
+      "min": 20.4,
+      "max": 31.5
+     }
+    }
+   }
   },
   {
    "nom": "Nevers",
    "region": "Bourgogne-Franche-Comté",
    "pays": "FR",
    "lat": 46.99,
-   "lon": 3.159
+   "lon": 3.159,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.8,
+    "djuChauffage": 2516,
+    "djuClim": 241,
+    "nuitsTropicales": 4.1,
+    "joursChaleur30": 11.3,
+    "joursChaleur35": 1.3,
+    "vaguesChaleur": 1.4
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.4,
+    "djuChauffage": 2160.7,
+    "djuClim": 454.7,
+    "nuitsTropicales": 19,
+    "joursChaleur30": 27.6,
+    "joursChaleur35": 6,
+    "vaguesChaleur": 3.7,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.3,
+      "max": 13.5
+     },
+     "nuitsTropicales": {
+      "min": 13.7,
+      "max": 25.1
+     },
+     "joursChaleur30": {
+      "min": 25.2,
+      "max": 30.8
+     }
+    }
+   }
   },
   {
    "nom": "Brest",
    "region": "Bretagne",
    "pays": "FR",
    "lat": 48.39,
-   "lon": -4.486
+   "lon": -4.486,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.1,
+    "djuChauffage": 2179,
+    "djuClim": 21,
+    "nuitsTropicales": 0,
+    "joursChaleur30": 0.1,
+    "joursChaleur35": 0,
+    "vaguesChaleur": 0
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.1,
+    "djuChauffage": 1865,
+    "djuClim": 68,
+    "nuitsTropicales": 1.5,
+    "joursChaleur30": 1.2,
+    "joursChaleur35": 0.1,
+    "vaguesChaleur": 0.1,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13,
+      "max": 13.3
+     },
+     "nuitsTropicales": {
+      "min": 0.4,
+      "max": 2.2
+     },
+     "joursChaleur30": {
+      "min": 0.2,
+      "max": 2.7
+     }
+    }
+   }
   },
   {
    "nom": "Vannes",
    "region": "Bretagne",
    "pays": "FR",
    "lat": 47.658,
-   "lon": -2.76
+   "lon": -2.76,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.4,
+    "djuChauffage": 2146,
+    "djuClim": 103,
+    "nuitsTropicales": 0.8,
+    "joursChaleur30": 2,
+    "joursChaleur35": 0,
+    "vaguesChaleur": 0.2
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.7,
+    "djuChauffage": 1826.3,
+    "djuClim": 234,
+    "nuitsTropicales": 6.9,
+    "joursChaleur30": 9,
+    "joursChaleur35": 1.1,
+    "vaguesChaleur": 1.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.6,
+      "max": 13.7
+     },
+     "nuitsTropicales": {
+      "min": 5.1,
+      "max": 7.9
+     },
+     "joursChaleur30": {
+      "min": 6.4,
+      "max": 10.5
+     }
+    }
+   }
   },
   {
    "nom": "Tours",
    "region": "Centre-Val de Loire",
    "pays": "FR",
    "lat": 47.394,
-   "lon": 0.684
+   "lon": 0.684,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.4,
+    "djuChauffage": 2299,
+    "djuClim": 236,
+    "nuitsTropicales": 3.2,
+    "joursChaleur30": 9.6,
+    "joursChaleur35": 1.1,
+    "vaguesChaleur": 1
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.8,
+    "djuChauffage": 1963,
+    "djuClim": 442,
+    "nuitsTropicales": 15.2,
+    "joursChaleur30": 24.3,
+    "joursChaleur35": 5.1,
+    "vaguesChaleur": 2.7,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.8,
+      "max": 13.9
+     },
+     "nuitsTropicales": {
+      "min": 12.5,
+      "max": 18.4
+     },
+     "joursChaleur30": {
+      "min": 23.4,
+      "max": 25.9
+     }
+    }
+   }
   },
   {
    "nom": "Bourges",
    "region": "Centre-Val de Loire",
    "pays": "FR",
    "lat": 47.081,
-   "lon": 2.399
+   "lon": 2.399,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.9,
+    "djuChauffage": 2452,
+    "djuClim": 237,
+    "nuitsTropicales": 3.5,
+    "joursChaleur30": 10.3,
+    "joursChaleur35": 1.1,
+    "vaguesChaleur": 1.2
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.5,
+    "djuChauffage": 2100.3,
+    "djuClim": 448.7,
+    "nuitsTropicales": 17,
+    "joursChaleur30": 26.4,
+    "joursChaleur35": 5.2,
+    "vaguesChaleur": 3.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.4,
+      "max": 13.6
+     },
+     "nuitsTropicales": {
+      "min": 12.2,
+      "max": 22.5
+     },
+     "joursChaleur30": {
+      "min": 24.3,
+      "max": 29.5
+     }
+    }
+   }
   },
   {
    "nom": "Bastia",
    "region": "Corse",
    "pays": "FR",
    "lat": 42.697,
-   "lon": 9.45
+   "lon": 9.45,
+   "actuel": {
+    "tMoyenneAnnuelle": 16.1,
+    "djuChauffage": 1302,
+    "djuClim": 595,
+    "nuitsTropicales": 57.8,
+    "joursChaleur30": 4.5,
+    "joursChaleur35": 0.1,
+    "vaguesChaleur": 0.5
+   },
+   "modeles": {}
   },
   {
    "nom": "Reims",
    "region": "Grand Est",
    "pays": "FR",
    "lat": 49.258,
-   "lon": 4.032
+   "lon": 4.032,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.1,
+    "djuChauffage": 2692,
+    "djuClim": 161,
+    "nuitsTropicales": 1.8,
+    "joursChaleur30": 6.2,
+    "joursChaleur35": 0.6,
+    "vaguesChaleur": 0.7
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 12.6,
+    "djuChauffage": 2332,
+    "djuClim": 329.3,
+    "nuitsTropicales": 8.8,
+    "joursChaleur30": 17.9,
+    "joursChaleur35": 3,
+    "vaguesChaleur": 2.4,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 12.5,
+      "max": 12.7
+     },
+     "nuitsTropicales": {
+      "min": 5.9,
+      "max": 13.5
+     },
+     "joursChaleur30": {
+      "min": 15.8,
+      "max": 21.2
+     }
+    }
+   }
   },
   {
    "nom": "Nancy",
    "region": "Grand Est",
    "pays": "FR",
    "lat": 48.692,
-   "lon": 6.184
+   "lon": 6.184,
+   "actuel": {
+    "tMoyenneAnnuelle": 10.8,
+    "djuChauffage": 2820,
+    "djuClim": 191,
+    "nuitsTropicales": 2.2,
+    "joursChaleur30": 7.9,
+    "joursChaleur35": 0.6,
+    "vaguesChaleur": 0.9
+   },
+   "modeles": {}
   },
   {
    "nom": "Amiens",
    "region": "Hauts-de-France",
    "pays": "FR",
    "lat": 49.894,
-   "lon": 2.296
+   "lon": 2.296,
+   "actuel": {
+    "tMoyenneAnnuelle": 11,
+    "djuChauffage": 2648,
+    "djuClim": 104,
+    "nuitsTropicales": 0.5,
+    "joursChaleur30": 3,
+    "joursChaleur35": 0.2,
+    "vaguesChaleur": 0.1
+   },
+   "modeles": {}
   },
   {
    "nom": "Dunkerque",
@@ -451,7 +1266,17 @@
    "region": "Île-de-France",
    "pays": "FR",
    "lat": 48.54,
-   "lon": 2.66
+   "lon": 2.66,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.8,
+    "djuChauffage": 2480,
+    "djuClim": 207,
+    "nuitsTropicales": 2.9,
+    "joursChaleur30": 8.1,
+    "joursChaleur35": 1.1,
+    "vaguesChaleur": 0.8
+   },
+   "modeles": {}
   },
   {
    "nom": "Cergy",
