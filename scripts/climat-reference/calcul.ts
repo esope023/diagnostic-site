@@ -26,7 +26,9 @@ const DAILY = "temperature_2m_max,temperature_2m_min,temperature_2m_mean";
 
 const BUDGET_MS = Number(process.env.BUDGET_MIN ?? 50) * 60_000;
 /** Pause entre deux requêtes lourdes, pour rester sous le quota par minute. */
-const PAUSE_MS = Number(process.env.PAUSE_S ?? 75) * 1000;
+const PAUSE_MS = Number(process.env.PAUSE_S ?? 60) * 1000;
+/** Calcul réparti : PART=k/N ne traite que les villes d'indice ≡ k (mod N). */
+const [PART_K, PART_N] = (process.env.PART ?? "0/1").split("/").map(Number);
 const t0 = Date.now();
 
 type Indic = Omit<TemperatureIndicators, "years">;
@@ -62,7 +64,9 @@ async function getDaily(url: string): Promise<DailyTemperatureBlock> {
     } catch (e) {
       log(`réseau (essai ${essai}) :`, (e as Error).message);
       if (essai === 4) throw new Quota("service injoignable");
-      await sleep(30_000);
+      // Souvent une connexion fermée par le serveur pendant la pause : on
+      // relance aussitôt sur une connexion neuve.
+      await sleep(3_000);
       continue;
     }
     if (res.ok) {
@@ -134,7 +138,8 @@ async function main(): Promise<void> {
   };
 
   try {
-    for (const v of villes) {
+    for (const [i, v] of villes.entries()) {
+      if (i % PART_N !== PART_K) continue;
       const ll = `latitude=${v.lat}&longitude=${v.lon}`;
       if (!v.actuel) {
         const d = await requete(`${ARCHIVE}?${ll}&start_date=1991-01-01&end_date=2020-12-31&daily=${DAILY}&timezone=auto`);
