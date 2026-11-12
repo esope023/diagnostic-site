@@ -6,7 +6,6 @@ import "./styles.css";
 
 import type { SiteContext } from "./core/types";
 import { buildSiteContext } from "./core/site-context";
-import { RADIUS_PRESETS, DEFAULT_RADIUS_VALUE, radiusValueToMeters } from "./core/scope";
 import {
   registerModule,
   getModules,
@@ -28,6 +27,9 @@ import { generateReport } from "./export/report";
 import { synthesizeFromRegistry, syntheseToExportBlock } from "./synthese";
 import { renderSynthese } from "./synthese/render";
 import { attachAddressAutocomplete } from "./ui/address-autocomplete";
+import { attachRadiusControl } from "./ui/radius-control";
+import { moduleIcon } from "./ui/icons";
+import { initTheme } from "./ui/theme";
 
 // --- Enregistrement des modules ---------------------------------------------
 import { climatModule } from "./modules/climat";
@@ -50,7 +52,6 @@ registerModule(mobilitesModule); // scope "quartier"
 // --- Références DOM ----------------------------------------------------------
 const form = document.getElementById("search-form") as HTMLFormElement;
 const input = document.getElementById("search-input") as HTMLInputElement;
-const radiusSelect = document.getElementById("radius-select") as HTMLSelectElement;
 const modulesEl = document.getElementById("modules") as HTMLElement;
 const siteInfoEl = document.getElementById("site-info") as HTMLElement;
 const syntheseEl = document.getElementById("synthese") as HTMLElement;
@@ -62,6 +63,7 @@ let currentCtx: SiteContext | null = null;
 const moduleBodies = new Map<string, HTMLElement>();
 
 initMap(mapContainer);
+initTheme(document.getElementById("theme-btn") as HTMLButtonElement);
 
 // --- Bascule Carte 2D / Vue 3D -----------------------------------------------
 // La vue 3D (MapLibre, ~1 Mo) n'est chargée qu'au premier clic.
@@ -98,14 +100,17 @@ const addressAutocomplete = attachAddressAutocomplete(input, {
   near: () => (currentCtx ? { lat: currentCtx.lat, lon: currentCtx.lon } : null),
 });
 
-// --- Sélecteur de rayon (peuplé depuis la source unique RADIUS_PRESETS) ----
-for (const preset of RADIUS_PRESETS) {
-  const opt = document.createElement("option");
-  opt.value = preset.value;
-  opt.textContent = preset.label;
-  radiusSelect.appendChild(opt);
-}
-radiusSelect.value = DEFAULT_RADIUS_VALUE;
+// --- Périmètre : préréglages + distance libre ----------------------------------
+// Changer de périmètre ne relance que les modules "quartier".
+const radius = attachRadiusControl(document.getElementById("radius-control")!, async (meters) => {
+  if (!currentCtx) return; // pas de site chargé, rien à recalculer
+  currentCtx = { ...currentCtx, radiusM: meters };
+  updateAnalysisCircle(currentCtx);
+  if (!map3dContainer.hidden && view3d) void view3d.setSite(currentCtx);
+  updateSiteInfo(currentCtx);
+  await runModules(currentCtx, (m) => m.scope === "quartier");
+  refreshSynthese();
+});
 
 // --- Recherche ---------------------------------------------------------------
 form.addEventListener("submit", async (e) => {
@@ -128,7 +133,7 @@ async function analyze(query: string, preset: GeocodeResult | null): Promise<voi
   syntheseEl.hidden = true;
   clearResults();
 
-  const radiusM = radiusValueToMeters(radiusSelect.value);
+  const radiusM = radius.getMeters();
   let ctx: SiteContext | null;
   try {
     ctx = await buildSiteContext(query, radiusM, preset);
@@ -201,17 +206,6 @@ moveBar.querySelector(".move-bar-go")!.addEventListener("click", async () => {
   await analyze(point.label, point);
 });
 
-// --- Changement de rayon : ne relance que les modules "quartier" -----------
-radiusSelect.addEventListener("change", async () => {
-  if (!currentCtx) return; // pas de site chargé, rien à recalculer
-  currentCtx = { ...currentCtx, radiusM: radiusValueToMeters(radiusSelect.value) };
-  updateAnalysisCircle(currentCtx);
-  if (!map3dContainer.hidden && view3d) void view3d.setSite(currentCtx);
-  updateSiteInfo(currentCtx);
-  await runModules(currentCtx, (m) => m.scope === "quartier");
-  refreshSynthese();
-});
-
 /** Recalcule et affiche la synthèse des enjeux à partir des résultats déjà
  * en registre — ne relance aucun fetch, pure lecture croisée. */
 function refreshSynthese(): void {
@@ -254,7 +248,7 @@ async function runModules(
 async function runOneModule(mod: AnyMod, ctx: SiteContext, id: number): Promise<void> {
   let body = moduleBodies.get(mod.id);
   if (!body) {
-    body = createModuleCard(mod.id, `${mod.icon ?? ""} ${mod.label}`);
+    body = createModuleCard(mod.id, mod.label);
     moduleBodies.set(mod.id, body);
   }
   const card = body.closest<HTMLElement>(".module-card")!;
@@ -323,6 +317,7 @@ function createModuleCard(id: string, title: string): HTMLElement {
   card.innerHTML = `
     <h2 class="module-heading">
       <button type="button" class="module-toggle" aria-expanded="false" aria-controls="${bodyId}">
+        ${moduleIcon(id)}
         <span class="module-title"></span>
         <span class="module-status" aria-live="polite"></span>
         <span class="module-chevron" aria-hidden="true"></span>
@@ -375,7 +370,7 @@ exportBtn.addEventListener("click", async () => {
     const blocks = [syntheseBlock, ...collectExportBlocks(currentCtx)];
     await generateReport(blocks, currentCtx, getMapElement());
   } finally {
-    exportBtn.textContent = "Exporter le rapport (PDF)";
+    exportBtn.textContent = "Exporter le rapport";
     exportBtn.disabled = false;
   }
 });

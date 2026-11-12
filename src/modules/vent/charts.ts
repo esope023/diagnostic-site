@@ -49,7 +49,6 @@ export function roseConfig(rose: SeasonRose, title: string): ChartConfiguration 
       scales: {
         r: {
           ticks: { display: false },
-          grid: { color: "rgba(0,0,0,0.08)" },
         },
       },
     },

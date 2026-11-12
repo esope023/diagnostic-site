@@ -3,54 +3,66 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Diagnostic de site — bioclimatique</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
   </head>
   <body>
     <header class="app-header">
-      <h1>Diagnostic de site</h1>
-      <form id="search-form" class="search">
-        <input
-          id="search-input"
-          type="text"
-          placeholder="Adresse ou lieu (ex. Place de la Comédie, Montpellier)"
-          autocomplete="off"
-        />
-        <label for="radius-select" class="radius-label">Périmètre</label>
-        <select id="radius-select"></select>
-        <button type="submit">Analyser</button>
-      </form>
-      <div id="site-info" class="site-info" hidden></div>
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="11" cy="11" r="5" /><circle cx="11" cy="11" r="1.6" fill="currentColor" stroke="none" />
+          <path d="M11 1v4M11 17v4M1 11h4M17 11h4" />
+        </svg>
+        <h1>Diagnostic de site</h1>
+      </div>
+      <nav class="tabs" aria-label="Espaces">
+        <a href="./" class="tab" aria-current="page">Diagnostic</a>
+        <span class="tab" aria-disabled="true" title="En préparation">Atelier cartographique</span>
+      </nav>
+      <div class="header-actions">
+        <button id="theme-btn" type="button" class="icon-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+        <button id="export-btn" type="button" class="btn-secondary" disabled>Exporter le rapport</button>
+      </div>
     </header>
 
-    <section id="synthese" class="synthese-card" hidden aria-label="Synthèse des enjeux"></section>
+    <form id="search-form" class="search" role="search">
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" />
+        </svg>
+        <label for="search-input" class="visually-hidden">Adresse ou lieu</label>
+        <input id="search-input" type="text" placeholder="Adresse ou lieu (ex. Place de la Comédie, Montpellier)" autocomplete="off" />
+      </div>
+      <div id="radius-control" role="group" aria-label="Périmètre d'analyse"></div>
+      <button type="submit" class="btn-primary">Analyser</button>
+    </form>
+    <p id="site-info" class="site-info" hidden></p>
 
     <main class="layout">
-      <section class="map-wrap" aria-label="Carte du site">
-        <div id="map" class="map"></div>
-        <div id="map3d" class="map3d" hidden></div>
-        <div class="map-mode" role="group" aria-label="Type de carte">
-          <button type="button" data-mode="2d" aria-pressed="true">Carte 2D</button>
-          <button type="button" data-mode="3d" aria-pressed="false" disabled title="Lancez d'abord une analyse">Vue 3D</button>
-        </div>
-      </section>
-      <section id="modules" class="modules" aria-label="Résultats du diagnostic">
-        <p class="placeholder">Recherchez une adresse pour lancer le diagnostic.</p>
-      </section>
+      <div class="col-map">
+        <section class="map-wrap" aria-label="Carte du site">
+          <div id="map" class="map"></div>
+          <div id="map3d" class="map3d" hidden></div>
+          <div class="map-mode segmented" role="group" aria-label="Type de carte">
+            <button type="button" data-mode="2d" aria-pressed="true">Carte 2D</button>
+            <button type="button" data-mode="3d" aria-pressed="false" disabled title="Lancez d'abord une analyse">Vue 3D</button>
+          </div>
+        </section>
+        <p class="attributions">
+          Données : © OpenStreetMap · © IGN / Géoplateforme (Etalab 2.0) · Open-Meteo · PVGIS © Union européenne
+        </p>
+      </div>
+      <div class="col-results">
+        <section id="synthese" class="synthese-card" hidden aria-label="Synthèse des enjeux"></section>
+        <section id="modules" class="modules" aria-label="Résultats du diagnostic">
+          <p class="placeholder">Recherchez une adresse pour lancer le diagnostic.</p>
+        </section>
+      </div>
     </main>
-
-    <footer class="app-footer">
-      <button id="export-btn" disabled>Exporter le rapport (PDF)</button>
-      <p class="attributions">
-        Données : © OpenStreetMap · © IGN / Géoplateforme (Etalab 2.0) ·
-        Open-Meteo · PVGIS © Union européenne
-      </p>
-    </footer>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

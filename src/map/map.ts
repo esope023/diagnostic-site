@@ -85,7 +85,8 @@ export function updateAnalysisCircle(ctx: SiteContext): void {
   if (ctx.radiusM !== null) {
     analysisCircle = L.circle([ctx.lat, ctx.lon], {
       radius: ctx.radiusM,
-      color: "#2c7a7b",
+      color: "#3A3A3C",
+      dashArray: "5 5",
       weight: 1.5,
       fillOpacity: 0.05,
     }).addTo(map);
