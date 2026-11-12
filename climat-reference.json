@@ -1,0 +1,541 @@
+{
+ "version": 1,
+ "majLe": "2026-11-12T20:42:37.248Z",
+ "methode": "ERA5 1991-2020 (Open-Meteo archive) ; horizon 2050 = 2036-2050, méthode des écarts sur EC-Earth3P-HR, MRI-AGCM3-2-S et CMCC-CM2-VHR4 (Open-Meteo Climate API). Indicateurs identiques au module Climat du site.",
+ "villes": [
+  {
+   "nom": "Paris",
+   "region": "Île-de-France",
+   "pays": "FR",
+   "lat": 48.857,
+   "lon": 2.352,
+   "actuel": {
+    "tMoyenneAnnuelle": 11.6,
+    "djuChauffage": 2503,
+    "djuClim": 184,
+    "nuitsTropicales": 1.9,
+    "joursChaleur30": 7.2,
+    "joursChaleur35": 1,
+    "vaguesChaleur": 0.7
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13,
+    "djuChauffage": 2160,
+    "djuClim": 359.7,
+    "nuitsTropicales": 9.3,
+    "joursChaleur30": 19.8,
+    "joursChaleur35": 3.6,
+    "vaguesChaleur": 2.3,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13,
+      "max": 13.1
+     },
+     "nuitsTropicales": {
+      "min": 6,
+      "max": 13.4
+     },
+     "joursChaleur30": {
+      "min": 18,
+      "max": 22.7
+     }
+    }
+   }
+  },
+  {
+   "nom": "Marseille",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "pays": "FR",
+   "lat": 43.296,
+   "lon": 5.37,
+   "actuel": {
+    "tMoyenneAnnuelle": 15.5,
+    "djuChauffage": 1490,
+    "djuClim": 581,
+    "nuitsTropicales": 39,
+    "joursChaleur30": 10.5,
+    "joursChaleur35": 0,
+    "vaguesChaleur": 1.4
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 17,
+    "djuChauffage": 1219.3,
+    "djuClim": 857.7,
+    "nuitsTropicales": 70.7,
+    "joursChaleur30": 32.7,
+    "joursChaleur35": 3.7,
+    "vaguesChaleur": 3.1,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 16.8,
+      "max": 17.2
+     },
+     "nuitsTropicales": {
+      "min": 67.7,
+      "max": 74.6
+     },
+     "joursChaleur30": {
+      "min": 29.1,
+      "max": 37.4
+     }
+    }
+   }
+  },
+  {
+   "nom": "Lyon",
+   "region": "Auvergne-Rhône-Alpes",
+   "pays": "FR",
+   "lat": 45.758,
+   "lon": 4.835,
+   "actuel": {
+    "tMoyenneAnnuelle": 12.3,
+    "djuChauffage": 2413,
+    "djuClim": 344,
+    "nuitsTropicales": 7,
+    "joursChaleur30": 19.2,
+    "joursChaleur35": 1.9,
+    "vaguesChaleur": 2.7
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 13.9,
+    "djuChauffage": 2072.7,
+    "djuClim": 579,
+    "nuitsTropicales": 26.5,
+    "joursChaleur30": 37.8,
+    "joursChaleur35": 8.7,
+    "vaguesChaleur": 4.8,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 13.8,
+      "max": 13.9
+     },
+     "nuitsTropicales": {
+      "min": 22.2,
+      "max": 29.7
+     },
+     "joursChaleur30": {
+      "min": 36.1,
+      "max": 40.4
+     }
+    }
+   }
+  },
+  {
+   "nom": "Toulouse",
+   "region": "Occitanie",
+   "pays": "FR",
+   "lat": 43.605,
+   "lon": 1.444,
+   "actuel": {
+    "tMoyenneAnnuelle": 13.7,
+    "djuChauffage": 1984,
+    "djuClim": 415,
+    "nuitsTropicales": 10.8,
+    "joursChaleur30": 25,
+    "joursChaleur35": 2.7,
+    "vaguesChaleur": 2.9
+   },
+   "h2050": {
+    "tMoyenneAnnuelle": 15.3,
+    "djuChauffage": 1664,
+    "djuClim": 676,
+    "nuitsTropicales": 32.9,
+    "joursChaleur30": 45.7,
+    "joursChaleur35": 13,
+    "vaguesChaleur": 5.2,
+    "nbModeles": 3,
+    "fourchette": {
+     "tMoyenneAnnuelle": {
+      "min": 15.2,
+      "max": 15.4
+     },
+     "nuitsTropicales": {
+      "min": 24.8,
+      "max": 38.3
+     },
+     "joursChaleur30": {
+      "min": 40.8,
+      "max": 49.5
+     }
+    }
+   }
+  },
+  {
+   "nom": "Bordeaux",
+   "region": "Nouvelle-Aquitaine",
+   "pays": "FR",
+   "lat": 44.838,
+   "lon": -0.579,
+   "actuel": {
+    "tMoyenneAnnuelle": 13.8,
+    "djuChauffage": 1892,
+    "djuClim": 366,
+    "nuitsTropicales": 6.1,
+    "joursChaleur30": 22.5,
+    "joursChaleur35": 3.5,
+    "vaguesChaleur": 3.1
+   },
+   "modeles": {}
+  },
+  {
+   "nom": "Lille",
+   "region": "Hauts-de-France",
+   "pays": "FR",
+   "lat": 50.629,
+   "lon": 3.057
+  },
+  {
+   "nom": "Nantes",
+   "region": "Pays de la Loire",
+   "pays": "FR",
+   "lat": 47.218,
+   "lon": -1.554
+  },
+  {
+   "nom": "Strasbourg",
+   "region": "Grand Est",
+   "pays": "FR",
+   "lat": 48.573,
+   "lon": 7.752
+  },
+  {
+   "nom": "Rennes",
+   "region": "Bretagne",
+   "pays": "FR",
+   "lat": 48.111,
+   "lon": -1.68
+  },
+  {
+   "nom": "Rouen",
+   "region": "Normandie",
+   "pays": "FR",
+   "lat": 49.443,
+   "lon": 1.099
+  },
+  {
+   "nom": "Dijon",
+   "region": "Bourgogne-Franche-Comté",
+   "pays": "FR",
+   "lat": 47.322,
+   "lon": 5.041
+  },
+  {
+   "nom": "Orléans",
+   "region": "Centre-Val de Loire",
+   "pays": "FR",
+   "lat": 47.903,
+   "lon": 1.909
+  },
+  {
+   "nom": "Ajaccio",
+   "region": "Corse",
+   "pays": "FR",
+   "lat": 41.919,
+   "lon": 8.738
+  },
+  {
+   "nom": "Montpellier",
+   "region": "Occitanie",
+   "pays": "FR",
+   "lat": 43.611,
+   "lon": 3.877
+  },
+  {
+   "nom": "Nice",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "pays": "FR",
+   "lat": 43.71,
+   "lon": 7.262
+  },
+  {
+   "nom": "Séville",
+   "region": "Andalousie",
+   "pays": "ES",
+   "lat": 37.389,
+   "lon": -5.984
+  },
+  {
+   "nom": "Madrid",
+   "region": "Communauté de Madrid",
+   "pays": "ES",
+   "lat": 40.417,
+   "lon": -3.704
+  },
+  {
+   "nom": "Barcelone",
+   "region": "Catalogne",
+   "pays": "ES",
+   "lat": 41.389,
+   "lon": 2.159
+  },
+  {
+   "nom": "Valence",
+   "region": "Communauté valencienne",
+   "pays": "ES",
+   "lat": 39.47,
+   "lon": -0.376
+  },
+  {
+   "nom": "Bilbao",
+   "region": "Pays basque",
+   "pays": "ES",
+   "lat": 43.263,
+   "lon": -2.935
+  },
+  {
+   "nom": "Lisbonne",
+   "region": "Lisbonne",
+   "pays": "PT",
+   "lat": 38.722,
+   "lon": -9.139
+  },
+  {
+   "nom": "Porto",
+   "region": "Nord",
+   "pays": "PT",
+   "lat": 41.15,
+   "lon": -8.611
+  },
+  {
+   "nom": "Rome",
+   "region": "Latium",
+   "pays": "IT",
+   "lat": 41.903,
+   "lon": 12.496
+  },
+  {
+   "nom": "Milan",
+   "region": "Lombardie",
+   "pays": "IT",
+   "lat": 45.464,
+   "lon": 9.19
+  },
+  {
+   "nom": "Florence",
+   "region": "Toscane",
+   "pays": "IT",
+   "lat": 43.77,
+   "lon": 11.256
+  },
+  {
+   "nom": "Naples",
+   "region": "Campanie",
+   "pays": "IT",
+   "lat": 40.852,
+   "lon": 14.268
+  },
+  {
+   "nom": "Palerme",
+   "region": "Sicile",
+   "pays": "IT",
+   "lat": 38.116,
+   "lon": 13.361
+  },
+  {
+   "nom": "Athènes",
+   "region": "Attique",
+   "pays": "GR",
+   "lat": 37.984,
+   "lon": 23.728
+  },
+  {
+   "nom": "Tunis",
+   "region": "Tunis",
+   "pays": "TN",
+   "lat": 36.806,
+   "lon": 10.181
+  },
+  {
+   "nom": "Alger",
+   "region": "Alger",
+   "pays": "DZ",
+   "lat": 36.754,
+   "lon": 3.059
+  },
+  {
+   "nom": "Grenoble",
+   "region": "Auvergne-Rhône-Alpes",
+   "pays": "FR",
+   "lat": 45.188,
+   "lon": 5.724
+  },
+  {
+   "nom": "Clermont-Ferrand",
+   "region": "Auvergne-Rhône-Alpes",
+   "pays": "FR",
+   "lat": 45.778,
+   "lon": 3.087
+  },
+  {
+   "nom": "Besançon",
+   "region": "Bourgogne-Franche-Comté",
+   "pays": "FR",
+   "lat": 47.238,
+   "lon": 6.024
+  },
+  {
+   "nom": "Nevers",
+   "region": "Bourgogne-Franche-Comté",
+   "pays": "FR",
+   "lat": 46.99,
+   "lon": 3.159
+  },
+  {
+   "nom": "Brest",
+   "region": "Bretagne",
+   "pays": "FR",
+   "lat": 48.39,
+   "lon": -4.486
+  },
+  {
+   "nom": "Vannes",
+   "region": "Bretagne",
+   "pays": "FR",
+   "lat": 47.658,
+   "lon": -2.76
+  },
+  {
+   "nom": "Tours",
+   "region": "Centre-Val de Loire",
+   "pays": "FR",
+   "lat": 47.394,
+   "lon": 0.684
+  },
+  {
+   "nom": "Bourges",
+   "region": "Centre-Val de Loire",
+   "pays": "FR",
+   "lat": 47.081,
+   "lon": 2.399
+  },
+  {
+   "nom": "Bastia",
+   "region": "Corse",
+   "pays": "FR",
+   "lat": 42.697,
+   "lon": 9.45
+  },
+  {
+   "nom": "Reims",
+   "region": "Grand Est",
+   "pays": "FR",
+   "lat": 49.258,
+   "lon": 4.032
+  },
+  {
+   "nom": "Nancy",
+   "region": "Grand Est",
+   "pays": "FR",
+   "lat": 48.692,
+   "lon": 6.184
+  },
+  {
+   "nom": "Amiens",
+   "region": "Hauts-de-France",
+   "pays": "FR",
+   "lat": 49.894,
+   "lon": 2.296
+  },
+  {
+   "nom": "Dunkerque",
+   "region": "Hauts-de-France",
+   "pays": "FR",
+   "lat": 51.034,
+   "lon": 2.377
+  },
+  {
+   "nom": "Melun",
+   "region": "Île-de-France",
+   "pays": "FR",
+   "lat": 48.54,
+   "lon": 2.66
+  },
+  {
+   "nom": "Cergy",
+   "region": "Île-de-France",
+   "pays": "FR",
+   "lat": 49.036,
+   "lon": 2.076
+  },
+  {
+   "nom": "Caen",
+   "region": "Normandie",
+   "pays": "FR",
+   "lat": 49.182,
+   "lon": -0.371
+  },
+  {
+   "nom": "Cherbourg",
+   "region": "Normandie",
+   "pays": "FR",
+   "lat": 49.639,
+   "lon": -1.616
+  },
+  {
+   "nom": "Limoges",
+   "region": "Nouvelle-Aquitaine",
+   "pays": "FR",
+   "lat": 45.834,
+   "lon": 1.262
+  },
+  {
+   "nom": "La Rochelle",
+   "region": "Nouvelle-Aquitaine",
+   "pays": "FR",
+   "lat": 46.16,
+   "lon": -1.151
+  },
+  {
+   "nom": "Pau",
+   "region": "Nouvelle-Aquitaine",
+   "pays": "FR",
+   "lat": 43.295,
+   "lon": -0.371
+  },
+  {
+   "nom": "Perpignan",
+   "region": "Occitanie",
+   "pays": "FR",
+   "lat": 42.699,
+   "lon": 2.895
+  },
+  {
+   "nom": "Nîmes",
+   "region": "Occitanie",
+   "pays": "FR",
+   "lat": 43.837,
+   "lon": 4.36
+  },
+  {
+   "nom": "Angers",
+   "region": "Pays de la Loire",
+   "pays": "FR",
+   "lat": 47.478,
+   "lon": -0.563
+  },
+  {
+   "nom": "Le Mans",
+   "region": "Pays de la Loire",
+   "pays": "FR",
+   "lat": 48.006,
+   "lon": 0.199
+  },
+  {
+   "nom": "Avignon",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "pays": "FR",
+   "lat": 43.949,
+   "lon": 4.806
+  },
+  {
+   "nom": "Gap",
+   "region": "Provence-Alpes-Côte d'Azur",
+   "pays": "FR",
+   "lat": 44.559,
+   "lon": 6.079
+  }
+ ]
+}
