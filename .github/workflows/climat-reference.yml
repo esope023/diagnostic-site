@@ -1,0 +1,51 @@
+name: Référence climat des villes
+
+# Calcule, par étapes, le climat actuel et l'horizon 2050 de villes de
+# référence (classement et analogue climatique du module Climat). Le résultat
+# est publié sur la branche « donnees » (fichier climat-reference.json), que le
+# site lit directement. Chaque passage reprend là où le précédent s'est arrêté ;
+# une fois tout calculé, un passage ne fait plus aucune requête.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climat-reference
+  cancel-in-progress: false
+
+jobs:
+  calcul:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Reprendre les données déjà calculées
+        run: |
+          mkdir -p out
+          git show origin/donnees:climat-reference.json > out/climat-reference.json 2>/dev/null || echo '{}' > out/climat-reference.json
+      - name: Calculer
+        run: npx --yes tsx@4.19.2 scripts/climat-reference/calcul.ts out/climat-reference.json
+        env: { BUDGET_MIN: "50" }
+      - name: Publier sur la branche donnees
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin donnees >/dev/null; then
+            git worktree add -B donnees d origin/donnees
+          else
+            git worktree add --orphan -b donnees d
+          fi
+          cp out/climat-reference.json d/
+          cd d
+          git add climat-reference.json
+          git diff --cached --quiet || git commit -qm "Référence climat : mise à jour $(date -u +%FT%H:%MZ)"
+          git push -q origin donnees
