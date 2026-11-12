@@ -665,3 +665,21 @@ button { font: inherit; }
   .at-mode { left: auto; right: 56px; transform: none; }
 }
 body[data-vue="atelier"] { overflow: hidden; }
+
+/* --- Corrections téléphone : export en icône, panneau du soleil contenu ---- */
+#export-btn { display: inline-flex; align-items: center; gap: 6px; }
+.export-ico { display: none; }
+@media (max-width: 520px) {
+  .export-ico { display: block; }
+  .export-txt { display: none; }
+  #export-btn { padding: 7px 9px; }
+  .app-header { padding: 0 12px; }
+}
+.at-soleil { max-width: none; margin: 0; box-sizing: border-box; }
+.at-soleil .m3d-sun-row { flex-wrap: wrap; }
+.at-soleil .m3d-date { max-width: 100%; }
+@media (max-width: 520px) {
+  .at-soleil { left: 8px; right: 8px; bottom: 28px; padding: 8px 10px; font-size: 12px; }
+  .at-soleil .m3d-presets button { padding: 3px 6px; }
+  .at-mode { right: 52px; }
+}
