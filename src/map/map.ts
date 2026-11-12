@@ -14,6 +14,17 @@ function ignLayer(def: { layer: string; format: string }): L.TileLayer {
 
 let map: L.Map | null = null;
 let marker: L.Marker | null = null;
+let onMarkerMoved: ((lat: number, lon: number) => void) | null = null;
+
+/** Rappel appelé quand l'utilisateur fait glisser le repère du site. */
+export function setMarkerMovedHandler(fn: (lat: number, lon: number) => void): void {
+  onMarkerMoved = fn;
+}
+
+/** Replace le repère à une position (annulation d'un déplacement). */
+export function resetMarker(lat: number, lon: number): void {
+  marker?.setLatLng([lat, lon]);
+}
 
 /** Repère du site : point plein cerclé et croix de visée, dessiné en CSS/SVG
  * (pas d'image à charger, net à toutes les résolutions). */
@@ -46,7 +57,20 @@ export function focusSite(ctx: SiteContext): void {
   if (!map) return;
   map.setView([ctx.lat, ctx.lon], 17);
   if (marker) marker.remove();
-  marker = L.marker([ctx.lat, ctx.lon], { icon: SITE_ICON, title: ctx.label }).addTo(map).bindPopup(ctx.label).openPopup();
+  marker = L.marker([ctx.lat, ctx.lon], {
+    icon: SITE_ICON,
+    title: `${ctx.label} — faites glisser pour déplacer le point d'analyse`,
+    draggable: true,
+    autoPan: true,
+  })
+    .addTo(map)
+    .bindPopup(ctx.label)
+    .openPopup();
+  marker.on("dragstart", () => marker?.closePopup());
+  marker.on("dragend", () => {
+    const ll = marker!.getLatLng();
+    onMarkerMoved?.(ll.lat, ll.lng);
+  });
   updateAnalysisCircle(ctx);
   updateParcelleLayer(ctx);
 }

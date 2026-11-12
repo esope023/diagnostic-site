@@ -14,7 +14,16 @@ import {
   collectExportBlocks,
   clearResults,
 } from "./core/module-registry";
-import { initMap, focusSite, updateAnalysisCircle, getMapElement } from "./map/map";
+import {
+  initMap,
+  focusSite,
+  updateAnalysisCircle,
+  getMapElement,
+  setMarkerMovedHandler,
+  resetMarker,
+} from "./map/map";
+import { manualPoint, type GeocodeResult } from "./core/geocode";
+import { distanceMeters } from "./core/geo";
 import { generateReport } from "./export/report";
 import { synthesizeFromRegistry, syntheseToExportBlock } from "./synthese";
 import { renderSynthese } from "./synthese/render";
@@ -105,7 +114,12 @@ form.addEventListener("submit", async (e) => {
   if (!query) return;
   const preset = addressAutocomplete.getSelection();
   addressAutocomplete.close();
+  await analyze(query, preset);
+});
 
+/** Lance un diagnostic complet : adresse saisie, suggestion choisie ou point placé. */
+async function analyze(query: string, preset: GeocodeResult | null): Promise<void> {
+  hideMoveBar();
   modulesEl.innerHTML = "";
   moduleBodies.clear();
   modulesToolbar.hidden = true;
@@ -143,6 +157,48 @@ form.addEventListener("submit", async (e) => {
   await runModules(ctx);
   refreshSynthese();
   exportBtn.disabled = false;
+}
+
+// --- Déplacement manuel du point d'analyse -----------------------------------
+// Pour un lieu sans adresse proche (parc, friche, parcelle agricole…) ou un
+// point précis : on fait glisser le repère, puis « Analyser ce point ».
+const moveBar = document.createElement("div");
+moveBar.className = "move-bar";
+moveBar.hidden = true;
+moveBar.innerHTML = `
+  <span class="move-bar-text">Point déplacé</span>
+  <button type="button" class="move-bar-go">Analyser ce point</button>
+  <button type="button" class="move-bar-cancel">Annuler</button>`;
+mapContainer.parentElement!.appendChild(moveBar);
+let pendingPoint: { lat: number; lon: number } | null = null;
+
+function hideMoveBar(): void {
+  moveBar.hidden = true;
+  pendingPoint = null;
+}
+
+setMarkerMovedHandler((lat, lon) => {
+  if (!currentCtx) return;
+  const d = distanceMeters({ lat, lon }, { lat: currentCtx.lat, lon: currentCtx.lon });
+  pendingPoint = { lat, lon };
+  moveBar.querySelector(".move-bar-text")!.textContent = `Point déplacé de ${Math.round(d)} m`;
+  moveBar.hidden = false;
+});
+moveBar.querySelector(".move-bar-cancel")!.addEventListener("click", () => {
+  if (currentCtx) resetMarker(currentCtx.lat, currentCtx.lon);
+  hideMoveBar();
+});
+moveBar.querySelector(".move-bar-go")!.addEventListener("click", async () => {
+  if (!pendingPoint) return;
+  const { lat, lon } = pendingPoint;
+  const btn = moveBar.querySelector<HTMLButtonElement>(".move-bar-go")!;
+  btn.disabled = true;
+  btn.textContent = "Recherche de l'adresse proche…";
+  const point = await manualPoint(lat, lon);
+  btn.disabled = false;
+  btn.textContent = "Analyser ce point";
+  input.value = point.label;
+  await analyze(point.label, point);
 });
 
 // --- Changement de rayon : ne relance que les modules "quartier" -----------

@@ -524,23 +524,47 @@ async function fetchVeg(la,lo,r){
     if(!res.ok)return[];const j=await res.json();return j.features||[];
   }catch(e){return[];}
 }
+/* Arbres OSM : overpass-api.de met ~36 s à répondre (nov. 2026) et le délai
+   de 12 s le faisait toujours échouer (0 arbre affiché). On interroge le
+   serveur principal et le miroir maps.mail.ru en parallèle, 45 s maximum,
+   et un échec renvoie null (affiché « arbres n.d. », jamais « 0 arbre »). */
+const OVERPASS_SERVERS=['https://overpass-api.de/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 async function fetchOSMTrees(la,lo,r){
   const dLat=r/111320,dLon=r/(111320*Math.cos(la*RAD));
   const bbox=(la-dLat)+','+(lo-dLon)+','+(la+dLat)+','+(lo+dLon);
-  const q='[out:json][timeout:12];node["natural"="tree"]('+bbox+');out;';
-  try{const res=await fetchTO('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q),12000);
-    if(!res.ok)return[];const j=await res.json();return j.elements||[];
-  }catch(e){return[];}
+  const q='[out:json][timeout:40];node["natural"="tree"]('+bbox+');out;';
+  const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),45000);
+  try{
+    return await Promise.any(OVERPASS_SERVERS.map(async srv=>{
+      const res=await fetch(srv+'?data='+encodeURIComponent(q),{signal:ctl.signal});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const j=await res.json();if(!Array.isArray(j.elements))throw new Error('réponse inattendue');
+      return j.elements;
+    }));
+  }catch(e){console.warn('[héliodon] arbres indisponibles',e);return null;}
+  finally{clearTimeout(t);ctl.abort();}
 }
+const treesLabel=t=>t===null?'arbres n.d. (OpenStreetMap n\'a pas répondu)':t.length+' arbres';
 
 /* 11. ADRESSE PARTAGÉE + CHARGEMENT */
 let siteAddr='',siteLat=0,siteLon=0;
 async function geocodeHelio(q){
-  const r=await fetch('https://api-adresse.data.gouv.fr/search/?limit=1&q='+encodeURIComponent(q));
-  if(!r.ok)throw new Error('BAN HTTP '+r.status);
-  const j=await r.json();if(!j.features||!j.features.length)throw new Error('Adresse introuvable');
-  const f=j.features[0];
-  return{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:f.properties.label};
+  // Base Adresse Nationale (IGN), puis Photon (OpenStreetMap) si l'IGN ne répond pas.
+  try{
+    const r=await fetchTO('https://data.geopf.fr/geocodage/search?limit=1&q='+encodeURIComponent(q),6000);
+    if(!r.ok)throw new Error('BAN HTTP '+r.status);
+    const j=await r.json();if(!j.features||!j.features.length)throw new Error('Adresse introuvable');
+    const f=j.features[0];
+    return{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:f.properties.label};
+  }catch(e){
+    if(e.message==='Adresse introuvable')throw e;
+    const r=await fetchTO('https://photon.komoot.io/api/?limit=1&lang=fr&bbox=-5.5,41.2,9.8,51.2&q='+encodeURIComponent(q),8000);
+    if(!r.ok)throw new Error('Géocodage HTTP '+r.status);
+    const j=await r.json();if(!j.features||!j.features.length)throw new Error('Adresse introuvable');
+    const f=j.features[0],p=f.properties;
+    const label=[[p.housenumber,p.street||p.name].filter(Boolean).join(' '),[p.postcode,p.city].filter(Boolean).join(' ')].filter(Boolean).join(' ')+' (OSM)';
+    return{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label};
+  }
 }
 function updateSiteInfo(label){
   const el=$('siteInfo');if(!el)return;
@@ -553,12 +577,19 @@ async function loadSite(la,lo,label){
     const feats=await fetchBld(la,lo,SCENE_R);
     console.log('[héliodon] bâtiments reçus:',feats.length);
     const nb=addBuildings(feats);
-    setStatus('Photo · végétation · arbres…');
-    const r=await Promise.all([buildOrtho(la,lo,SCENE_R).catch(()=>null),fetchVeg(la,lo,SCENE_R).catch(()=>[]),fetchOSMTrees(la,lo,SCENE_R).catch(()=>[])]);
-    addVeg(r[1]);addTrees(r[2]);
+    setStatus('Photo · végétation…');
+    // Les arbres (Overpass, lent) arrivent après : la scène s'affiche sans les attendre.
+    const treesP=fetchOSMTrees(la,lo,SCENE_R).catch(()=>null);
+    const r=await Promise.all([buildOrtho(la,lo,SCENE_R).catch(()=>null),fetchVeg(la,lo,SCENE_R).catch(()=>[])]);
+    addVeg(r[1]);
     syncNoon();update();buildArcs();frameScene();
-    setStatus(nb+' bât. · '+r[2].length+' arbres','ok');
+    setStatus(nb+' bât. · arbres en cours de chargement…');
     updateSiteInfo(label);
+    treesP.then(t=>{
+      if(lat0!==la||lon0!==lo)return; // un autre site a été chargé entre-temps
+      addTrees(t||[]);update();
+      setStatus(nb+' bât. · '+treesLabel(t),t===null?'err':'ok');
+    });
   }catch(e){
     console.error('[héliodon] loadSite échec:',e);
     // Scène minimale : sol + soleil, pour ne jamais rester en "Chargement…"
@@ -579,7 +610,7 @@ function loadDemoBlock(){
   }
   addBuildings(feats);
   Promise.all([buildOrtho(lat0,lon0,SCENE_R),fetchVeg(lat0,lon0,SCENE_R),fetchOSMTrees(lat0,lon0,SCENE_R)])
-    .then(r=>{addVeg(r[1]);addTrees(r[2]);syncNoon();update();buildArcs();frameScene();
+    .then(r=>{addVeg(r[1]);addTrees(r[2]||[]);syncNoon();update();buildArcs();frameScene();
       setStatus("Démo Marseille · adresse à saisir dans l'analyse de site",'ok');});
 }
 
