@@ -17,9 +17,10 @@ import { DEFAULT_HEIGHT_M, MAX_SHADOW_M, type ShadowBuilding } from "../map3d/sh
 import type { ShadowRequest, ShadowResponse } from "../map3d/shadow-worker";
 import { sunAtLegalTime, formatHour } from "../map3d/sun";
 import {
-  COUCHES, FAMILLES, FONDS, HAUTEURS, INCONNU, USAGES, USAGE_AUTRE, NEUTRE,
-  type CoucheDef, type Fond,
+  COUCHES, FAMILLES, FONDS, HAUTEURS, INCONNU, USAGES, USAGE_AUTRE, NEUTRE, COSIA, PAS_CARROYAGE, tuilesCosia,
+  type CoucheDef, type Fond, type MillesimeCosia,
 } from "./couches";
+import { carroyage } from "./lambert93";
 
 type Coloration = "neutre" | "hauteur" | "usage";
 
@@ -57,6 +58,26 @@ function repere(): HTMLElement {
     <line x1="1" y1="18" x2="11" y2="18" /><line x1="25" y1="18" x2="35" y2="18" />
     <circle cx="18" cy="18" r="7" class="ring" /><circle cx="18" cy="18" r="3" class="dot" /></svg>`;
   return el;
+}
+
+/** Arbre en volume (3D) : tronc et houppier octogonaux, taille générique. */
+const ARBRE = { tronc: { r: 0.3, h: 2.2 }, houppier: { r: 2.5, base: 2, h: 7 } };
+function octogone(lat: number, lon: number, rM: number): [number, number][] {
+  const mLat = 110_540;
+  const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
+  return Array.from({ length: 9 }, (_, i) => {
+    const a = ((i % 8) / 8) * 2 * Math.PI + Math.PI / 8;
+    return [lon + (Math.cos(a) * rM) / mLon, lat + (Math.sin(a) * rM) / mLat] as [number, number];
+  });
+}
+function arbres3D(arbres: { lat: number; lon: number }[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: arbres.flatMap((a) => [
+      { type: "Feature", properties: { base: 0, h: ARBRE.tronc.h, c: "#7a5c3e" }, geometry: { type: "Polygon", coordinates: [octogone(a.lat, a.lon, ARBRE.tronc.r)] } },
+      { type: "Feature", properties: { base: ARBRE.houppier.base, h: ARBRE.houppier.h, c: "#4f8f3f" }, geometry: { type: "Polygon", coordinates: [octogone(a.lat, a.lon, ARBRE.houppier.r)] } },
+    ] as GeoJSON.Feature[]),
+  };
 }
 
 function batiGeoJSON(data: BuildingsResult): GeoJSON.FeatureCollection {
@@ -100,6 +121,8 @@ export function createAtelier(root: HTMLElement): Atelier {
   let fond: Fond = "plan";
   let coloration: Coloration = "hauteur";
   let mode3d = false;
+  let millesime: MillesimeCosia = "2021-2023";
+  let pas: (typeof PAS_CARROYAGE)[number] = 100;
 
   // --- Gabarit ----------------------------------------------------------------
   const ligne = (c: CoucheDef) => {
@@ -109,6 +132,14 @@ export function createAtelier(root: HTMLElement): Atelier {
         ? `<div class="segmented seg-sm" role="group" aria-label="Fond de carte">
             ${(Object.keys(FONDS) as Fond[]).map((k) => `<button type="button" data-fond="${k}" aria-pressed="${k === fond}">${FONDS[k].titre}</button>`).join("")}
           </div>`
+        : c.id === "cosia"
+          ? `<div class="segmented seg-sm" role="group" aria-label="Millésime CoSIA">
+              ${(Object.keys(COSIA) as MillesimeCosia[]).map((m) => `<button type="button" data-cosia="${m}" aria-pressed="${m === millesime}">${m}</button>`).join("")}
+            </div>`
+        : c.id === "carroyage"
+          ? `<div class="segmented seg-sm" role="group" aria-label="Pas du carroyage">
+              ${PAS_CARROYAGE.map((v) => `<button type="button" data-pas="${v}" aria-pressed="${v === pas}">${v} m</button>`).join("")}
+            </div>`
         : c.id === "bati"
           ? `<div class="segmented seg-sm" role="group" aria-label="Coloration des bâtiments">
               <button type="button" data-colo="neutre" aria-pressed="false">Neutre</button>
@@ -127,7 +158,7 @@ export function createAtelier(root: HTMLElement): Atelier {
       <div class="at-reglages">
         ${extra}
         ${c.note ? `<p class="at-note">${esc(c.note)}</p>` : ""}
-        ${c.legende ? `<img class="at-legende-img" alt="Légende : ${esc(c.titre)}" loading="lazy" src="${c.legende}" onerror="this.remove()">` : ""}
+        ${c.legende ? `<details class="at-leg"><summary>Légende</summary><div class="at-leg-box"><img class="at-legende-img" alt="Légende : ${esc(c.titre)}" loading="lazy" src="${c.legende}" onerror="this.closest('details').remove()"></div></details>` : ""}
         <label class="at-opacite"><span>Opacité</span>
           <input type="range" min="0" max="100" step="5" value="${Math.round(e.opacite * 100)}" aria-label="Opacité de ${esc(c.titre)}">
           <output>${Math.round(e.opacite * 100)} %</output></label>
@@ -219,6 +250,8 @@ export function createAtelier(root: HTMLElement): Atelier {
         arbres: vecteur(),
         ombres: vecteur(),
         perimetre: vecteur(),
+        arbres3d: vecteur(),
+        carroyage: vecteur(),
       },
       layers: [
         { id: "fond-uni", type: "background", paint: { "background-color": "#efeeea" } },
@@ -248,6 +281,20 @@ export function createAtelier(root: HTMLElement): Atelier {
             "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 1.5, 17, 4, 19, 9],
           },
         },
+        {
+          id: "arbres-3d",
+          type: "fill-extrusion",
+          source: "arbres3d",
+          layout: { visibility: "none" },
+          paint: { "fill-extrusion-color": ["get", "c"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.9 },
+        },
+        {
+          id: "carroyage",
+          type: "line",
+          source: "carroyage",
+          layout: { visibility: "none" },
+          paint: { "line-color": "#3a3a3c", "line-opacity": 0.45, "line-width": ["case", ["get", "majeur"], 1, 0.5] },
+        },
         { id: "perimetre", type: "line", source: "perimetre", paint: { "line-color": "#3a3a3c", "line-width": 1.5, "line-dasharray": [3, 2] } },
       ],
     },
@@ -266,6 +313,8 @@ export function createAtelier(root: HTMLElement): Atelier {
   function couchesMap(id: string): string[] {
     if (id === "fond") return [];
     if (id === "bati") return ["bati-2d", "bati-3d"];
+    if (id === "arbres") return ["arbres", "arbres-3d"];
+    if (id === "repere") return [];
     return [id];
   }
   function appliquer(id: string): void {
@@ -282,11 +331,19 @@ export function createAtelier(root: HTMLElement): Atelier {
       let visible = e.actif;
       if (lid === "bati-2d") visible = e.actif && !mode3d;
       if (lid === "bati-3d") visible = e.actif && mode3d;
+      if (lid === "arbres") visible = e.actif && !mode3d;
+      if (lid === "arbres-3d") visible = e.actif && mode3d;
       map.setLayoutProperty(lid, "visibility", visible ? "visible" : "none");
       const prop = PROP[layer.type];
-      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" ? Math.min(0.95, e.opacite) : e.opacite);
+      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" || lid === "arbres-3d" ? Math.min(0.95, e.opacite) : e.opacite);
       if (lid === "arbres") map.setPaintProperty(lid, "circle-stroke-opacity", e.opacite);
     }
+    if (id === "repere" && marker) {
+      const el = marker.getElement();
+      el.style.display = e.actif ? "" : "none";
+      el.style.opacity = String(e.opacite);
+    }
+    if (id === "carroyage" && e.actif) dessinerCarroyage();
     if (id === "ombres") {
       soleilPanel.hidden = !e.actif;
       if (e.actif) demanderOmbres();
@@ -320,7 +377,23 @@ export function createAtelier(root: HTMLElement): Atelier {
     map.setPaintProperty("bati-2d", "fill-color", couleurBati());
     map.setPaintProperty("bati-3d", "fill-extrusion-color", couleurBati());
     q<HTMLElement>("[data-legende-bati]").innerHTML = legendeBati();
-    root.querySelectorAll<HTMLButtonElement>("[data-colo]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.colo === coloration)));
+    root.querySelectorAll<HTMLButtonElement>("[data-cosia]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      millesime = b.dataset.cosia as MillesimeCosia;
+      root.querySelectorAll("[data-cosia]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      await pret;
+      (map.getSource("cosia") as maplibregl.RasterTileSource).setTiles([tuilesCosia(millesime)]);
+    }),
+  );
+  root.querySelectorAll<HTMLButtonElement>("[data-pas]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      pas = Number(b.dataset.pas) as typeof pas;
+      root.querySelectorAll("[data-pas]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      await pret;
+      dessinerCarroyage();
+    }),
+  );
+  root.querySelectorAll<HTMLButtonElement>("[data-colo]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.colo === coloration)));
   }
 
   // --- Interactions du panneau ---------------------------------------------------
@@ -366,8 +439,16 @@ export function createAtelier(root: HTMLElement): Atelier {
       root.querySelectorAll(".at-mode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       map.easeTo({ pitch: mode3d ? 55 : 0, bearing: mode3d ? -20 : 0, duration: 600 });
       appliquer("bati");
+      appliquer("arbres");
     }),
   );
+
+  // --- Carroyage Lambert-93 ----------------------------------------------------------
+  function dessinerCarroyage(): void {
+    if (!site) return;
+    const demi = Math.max(600, (site.radiusM ?? 150) * 3);
+    (map.getSource("carroyage") as maplibregl.GeoJSONSource).setData(carroyage(site.lat, site.lon, demi, pas));
+  }
 
   // --- Ombres (worker) ------------------------------------------------------------
   const worker = new Worker(new URL("../map3d/shadow-worker.ts", import.meta.url), { type: "module" });
@@ -471,6 +552,7 @@ export function createAtelier(root: HTMLElement): Atelier {
           type: "FeatureCollection",
           features: arbres.map((a) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [a.lon, a.lat] } })),
         });
+        (map.getSource("arbres3d") as maplibregl.GeoJSONSource).setData(arbres3D(arbres));
         etatCouche(id, arbres.length ? `${arbres.length} arbres recensés dans le périmètre.` : "Aucun arbre recensé dans OpenStreetMap ici (inventaire souvent incomplet).");
       } else if (id === "vegetation") {
         etatCouche(id, "Chargement…");
@@ -516,6 +598,8 @@ export function createAtelier(root: HTMLElement): Atelier {
     });
     marker?.remove();
     marker = new maplibregl.Marker({ element: repere() }).setLngLat([ctx.lon, ctx.lat]).addTo(map);
+    appliquer("repere");
+    if (etat.get("carroyage")!.actif) dessinerCarroyage();
     if (!memePoint) {
       const r = ctx.radiusM ?? 150;
       map.jumpTo({ center: [ctx.lon, ctx.lat], zoom: r > 450 ? 15.3 : r > 200 ? 16.2 : 17, pitch: mode3d ? 55 : 0, bearing: mode3d ? -20 : 0 });

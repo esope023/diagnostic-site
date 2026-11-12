@@ -7,7 +7,7 @@
 
 import { IGN_WMTS, IGN_LAYERS } from "../api/endpoints";
 
-export type Famille = "Fond" | "Parcelles" | "Bâti" | "Végétation" | "Soleil" | "Urbanisme" | "Risques · Nature" | "Repères";
+export type Famille = "Fond" | "Occupation du sol" | "Parcelles" | "Bâti" | "Végétation" | "Soleil" | "Urbanisme" | "Risques · Nature" | "Repères";
 
 export interface CoucheDef {
   id: string;
@@ -44,6 +44,21 @@ function wmts(def: { layer: string; format: string }): string {
   return IGN_WMTS.replace("{layer}", def.layer).replace("{format}", def.format);
 }
 
+/** CoSIA (Couverture du Sol par IA, IGN) : un millésime par période de prise
+ * de vue ; la couverture 2024-2026 est en cours de production. */
+export const COSIA = {
+  "2017-2020": "IGNF_COSIA_2017-2020",
+  "2021-2023": "IGNF_COSIA_2021-2023",
+  "2024-2026": "IGNF_COSIA_2024-2026",
+} as const;
+export type MillesimeCosia = keyof typeof COSIA;
+export function tuilesCosia(m: MillesimeCosia): string {
+  return wmts({ layer: COSIA[m], format: "image/png" });
+}
+
+/** Pas du carroyage Lambert-93 (m). */
+export const PAS_CARROYAGE = [50, 100, 200, 500] as const;
+
 export const FONDS = {
   plan: { titre: "Plan", tuiles: wmts(IGN_LAYERS.plan) },
   photo: { titre: "Photo", tuiles: wmts(IGN_LAYERS.ortho) },
@@ -53,6 +68,19 @@ export type Fond = keyof typeof FONDS;
 
 export const COUCHES: CoucheDef[] = [
   { id: "fond", famille: "Fond", titre: "Fond de carte", source: "IGN Plan / BD ORTHO®", active: true, opacite: 0.7 },
+  {
+    id: "cosia",
+    famille: "Occupation du sol",
+    titre: "CoSIA, couverture du sol",
+    source: "IGN, couverture du sol par intelligence artificielle",
+    active: false,
+    opacite: 0.65,
+    tuiles: wmts({ layer: COSIA["2021-2023"], format: "image/png" }),
+    zoomMax: 18,
+    // Légende publiée par l'IGN dans les capacités WMTS (la même pour les trois millésimes).
+    legende: "https://data.geopf.fr/annexes/ressources/legendes/CoSIA-legend.png",
+    note: "Classes déduites des photos aériennes par l'IGN : une aide à la lecture, à vérifier sur place.",
+  },
   {
     id: "cadastre",
     famille: "Parcelles",
@@ -69,8 +97,8 @@ export const COUCHES: CoucheDef[] = [
     titre: "Arbres isolés",
     source: "OpenStreetMap",
     active: true,
-    opacite: 0.85,
-    note: "Positions seulement : la hauteur des arbres n'est pas connue.",
+    opacite: 0.9,
+    note: "Positions recensées ; en 3D, volume générique (houppier de 5 m, 7 m de haut) : la taille réelle n'est pas connue.",
   },
   { id: "vegetation", famille: "Végétation", titre: "Zones de végétation", source: "IGN BD TOPO®", active: false, opacite: 0.5 },
   {
@@ -131,9 +159,11 @@ export const COUCHES: CoucheDef[] = [
     tuiles: wms(WMS_V, "Natura_2000,Patrinat_ZNIEFF2_France,Patrinat_ZNIEFF1_France"),
   },
   { id: "perimetre", famille: "Repères", titre: "Périmètre d'analyse", source: "Diagnostic", active: true, opacite: 1 },
+  { id: "repere", famille: "Repères", titre: "Repère du site", source: "Point analysé", active: true, opacite: 1 },
+  { id: "carroyage", famille: "Repères", titre: "Carroyage", source: "Lambert-93 (RGF93)", active: false, opacite: 0.45 },
 ];
 
-export const FAMILLES: Famille[] = ["Fond", "Parcelles", "Bâti", "Végétation", "Soleil", "Urbanisme", "Risques · Nature", "Repères"];
+export const FAMILLES: Famille[] = ["Fond", "Occupation du sol", "Parcelles", "Bâti", "Végétation", "Soleil", "Urbanisme", "Risques · Nature", "Repères"];
 
 /** Classes de hauteur (m) : rampe séquentielle claire → foncée. */
 export const HAUTEURS = [
