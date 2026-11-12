@@ -30,6 +30,12 @@ export const OPEN_METEO = {
   climate: "https://climate-api.open-meteo.com/v1/climate",
 };
 
+/** Villes de référence du module Climat (classement, analogue), calculées
+ * par le workflow « Référence climat des villes » et publiées sur la branche
+ * « donnees » du dépôt. */
+export const CLIMAT_REFERENCE_URL =
+  "https://raw.githubusercontent.com/esope023/diagnostic-site/donnees/climat-reference.json";
+
 /** Base Adresse Nationale — géocodage FR, servi par la Géoplateforme IGN.
  * Remplace api-adresse.data.gouv.fr (service transféré à l'IGN, ancien
  * domaine voué à disparaître). Mêmes paramètres et même réponse GeoJSON. */
