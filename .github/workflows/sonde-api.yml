@@ -3,71 +3,23 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  e2e:
-    strategy:
-      matrix:
-        include:
-          - { name: bureau, w: 1440, h: 900 }
-          - { name: mobile, w: 390, h: 844 }
+  couches:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with: { ref: claude/atelier }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci && npm run build
-        env: { GH_PAGES_BASE: /diagnostic-site/ }
-      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
-      - name: Atelier
+      - name: CoSIA
         shell: bash
         run: |
           set +e
-          mkdir -p shots
-          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
-          cat > t.cjs <<'JS'
-          const { chromium } = require('playwright');
-          (async () => {
-            const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
-            const name = process.env.NAME; const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
-            const c = await b.newContext({ viewport:{width:Number(process.env.W), height:Number(process.env.H)} }); const p = await c.newPage();
-            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
-            p.on('console', m=>{ if (m.type()==='error') log('CONSOLE', m.text().slice(0,200)); });
-            const stats = {};
-            p.on('response', r=>{ const u=r.url(); const m=u.match(/LAYERS?=([^&]+)/); if (/geopf|georisques/.test(u) && m && /GetMap|GetTile/.test(u)) { const k=decodeURIComponent(m[1]).slice(0,40)+' '+r.status(); stats[k]=(stats[k]||0)+1; } });
-            const shot = async (f) => p.screenshot({ path:`shots/${name}-${f}.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log('capture',f,e.message.split('\n')[0]));
-            try {
-              await p.goto('http://localhost:4173/diagnostic-site/#atelier', { waitUntil:'domcontentloaded', timeout:60000 });
-              await p.waitForTimeout(4000);
-              log('vide visible', await p.isVisible('.at-vide'));
-              await shot('0-vide');
-              await p.click('a.tab[data-vue="diagnostic"]').catch(async()=>{ await p.goto('http://localhost:4173/diagnostic-site/#diagnostic'); });
-              await p.waitForTimeout(800);
-              await p.fill('#search-input', '2 rue jean 13004 marseille');
-              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log('pas de suggestions'));
-              await p.keyboard.press('Enter');
-              await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
-              await p.click('.map-atelier');
-              await p.waitForTimeout(9000);
-              log('compte', await p.innerText('.at-compte'), '| site', await p.innerText('.at-site'));
-              log('bati', await p.innerText('[data-bati-source]').catch(()=>''), '| etats', (await p.$$eval('.at-etat:not([hidden])', es=>es.map(e=>e.closest('.at-couche').dataset.couche+': '+e.textContent))).join(' / '));
-              await shot('1-defaut');
-              if (name==='mobile') { await p.click('.at-ouvrir').catch(()=>{}); await p.waitForTimeout(800); await shot('1b-panneau'); await p.click('.at-replier').catch(()=>{}); }
-              else {
-                for (const id of ['zonage','argiles','ombres']) await p.click(`[data-couche="${id}"] .switch`).catch(e=>log('clic',id,e.message.slice(0,80)));
-                await p.click('[data-colo="usage"]');
-                await p.waitForTimeout(7000);
-                log('etats2', (await p.$$eval('.at-etat:not([hidden])', es=>es.map(e=>e.closest('.at-couche').dataset.couche+': '+e.textContent))).join(' / '));
-                await shot('2-couches');
-                await p.click('[data-couche="zonage"] .switch'); await p.click('[data-couche="argiles"] .switch');
-                await p.click('[data-colo="hauteur"]');
-                await p.click('.at-mode button[data-mode="3d"]'); await p.waitForTimeout(5000);
-                await shot('3-3d');
-              }
-              log('TUILES', JSON.stringify(stats));
-            } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
-            await b.close();
-          })();
-          JS
-          NAME=${{ matrix.name }} W=${{ matrix.w }} H=${{ matrix.h }} node t.cjs
-          cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
+          curl -s "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities" -o wmts.xml
+          curl -s "https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsr.xml
+          curl -s "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsv.xml
+          python3 - <<'PY'
+          import re
+          for f in ['wmts.xml','wmsr.xml','wmsv.xml']:
+              x=open(f).read()
+              ids=set(re.findall(r'<(?:ows:Identifier|Name)>([^<]*COSIA[^<]*|[^<]*OCSGE[^<]*|[^<]*[Cc]osia[^<]*)</', x))
+              print(f, sorted(ids)[:40])
+              for n in sorted(ids)[:12]:
+                  i=x.find('>'+n+'<'); j=x.rfind('<Layer',0,i); k=x.find('</Layer>',i); blk=x[j:k]
+                  print('  ',n,'| formats',re.findall(r'<Format>([^<]*)',blk)[:2],'| tms',re.findall(r'<TileMatrixSet>([^<]*)',blk)[:2],'| styles',re.findall(r'<Style[^>]*>.*?<(?:ows:Identifier|Name)>([^<]*)',blk,re.S)[:2],'| titre',re.findall(r'<(?:ows:Title|Title)>([^<]*)',blk)[:1])
+          PY
