@@ -3,6 +3,7 @@
 import { Chart } from "chart.js/auto";
 import { moyennesAnnuelles, type ClimatResult, type AnneeObservee } from "./compute";
 import { fetchObserve } from "./fetch";
+import { chargerReference, encartsReference, brancherEncarts } from "./reference";
 import { tempPrecipConfig, rayonnementConfig } from "./charts";
 import { headline, chiffresCles, trajectoires, calendrier, bandes } from "./fiche";
 import type { ChartConfiguration } from "chart.js";
@@ -31,7 +32,9 @@ export function renderClimat(el: HTMLElement, r: ClimatResult): void {
         <h3 class="module-subtitle">Trajectoires</h3>
         ${trajectoires(r)}
         <h3 class="module-subtitle">Calendrier des nuits tropicales <span class="sub-note">nuits par mois</span></h3>
-        ${calendrier(r)}`;
+        ${calendrier(r)}
+        <h3 class="module-subtitle">Le site parmi d'autres lieux</h3>
+        <div data-reference><p class="placeholder">Chargement des villes de référence…</p></div>`;
 
   const details =
     r.projections.length === 0
@@ -101,6 +104,17 @@ export function renderClimat(el: HTMLElement, r: ClimatResult): void {
   mountChart(el, "tp", tempPrecipConfig(r));
   mountChart(el, "ray", rayonnementConfig(r));
   void chargerBandes(el, r);
+  void chargerEncarts(el, r);
+}
+
+/** Classement et analogue, à partir des villes de référence précalculées. */
+async function chargerEncarts(el: HTMLElement, r: ClimatResult): Promise<void> {
+  const slot = el.querySelector<HTMLElement>("[data-reference]");
+  if (!slot) return;
+  const f = await chargerReference();
+  if (!slot.isConnected) return;
+  slot.innerHTML = encartsReference(r, f);
+  brancherEncarts(slot, r, f);
 }
 
 /** Série observée 1950-2025, chargée après l'affichage de la fiche. */
