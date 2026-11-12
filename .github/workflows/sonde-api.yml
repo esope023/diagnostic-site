@@ -8,38 +8,61 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with: { ref: claude/climat-methode-ecarts }
+        with: { ref: claude/style-graphite }
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci && npm run build
         env: { GH_PAGES_BASE: /diagnostic-site/ }
       - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
-      - name: Test réel climat
+      - name: Captures
         shell: bash
         run: |
           set +e
+          mkdir -p shots
           npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
           cat > t.cjs <<'JS'
-          const { chromium } = require('playwright');
+          const { chromium, devices } = require('playwright');
           (async () => {
-            const b = await chromium.launch(); const p = await b.newPage({ viewport:{width:1280,height:900} });
+            const b = await chromium.launch();
             const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
-            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
-            p.on('response', r=>{ const u=r.url(); if (/open-meteo/.test(u) && r.status()!==200) log('HTTP', r.status(), u.slice(0,140)); });
-            await p.goto('http://localhost:4173/diagnostic-site/');
-            await p.fill('#search-input', '2 rue jean 13004 marseille');
-            await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>{});
-            await p.keyboard.press('Enter');
-            await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.textContent.includes('Climat')); return c && c.dataset.status && c.dataset.status!=='loading'; }, null, {timeout:400000}).catch(()=>log('attente Climat'));
-            const txt = await p.$$eval('.module-card', cs=>cs.filter(c=>c.textContent.includes('Climat')).map(c=>{ c.querySelector('.module-toggle').click(); return c; }).length);
-            await p.waitForTimeout(800);
-            const climat = await p.$$eval('.module-card', cs=>cs.filter(c=>c.querySelector('.module-title').textContent.includes('Climat')).map(c=>c.innerText.replace(/\n+/g,' ¶ ')));
-            const s = climat[0]||''; const i = s.indexOf('Projections climatiques');
-            log('STATUT', await p.$$eval('.module-card', cs=>cs.filter(c=>c.querySelector('.module-title').textContent.includes('Climat')).map(c=>c.dataset.status)[0]));
-            log('CLIMAT', s.slice(i, i+1500));
-            const synth = await p.innerText('#synthese').catch(()=> '');
-            log('SYNTHESE', synth.replace(/\n+/g,' ¶ ').slice(0,700));
+            async function run(ctxOpts, name, after) {
+              const c = await b.newContext(ctxOpts); const p = await c.newPage();
+              p.on('pageerror', e=>log(name,'PAGEERROR', e.message.slice(0,200)));
+              p.on('console', m=>{ if (m.type()==='error') log(name,'CONSOLE', m.text().slice(0,160)); });
+              await p.goto('http://localhost:4173/diagnostic-site/');
+              await p.screenshot({ path: `shots/${name}-0-accueil.png` });
+              await p.fill('#search-input', '2 rue jean 13004 marseille');
+              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log(name,'pas de suggestions'));
+              await p.screenshot({ path: `shots/${name}-1-suggestions.png` });
+              await p.keyboard.press('Enter');
+              await p.waitForFunction(()=>{ const cs=[...document.querySelectorAll('.module-card')]; return cs.length>=8 && cs.every(c=>c.dataset.status && c.dataset.status!=='loading'); }, null, {timeout:300000}).catch(()=>log(name,'modules encore en cours'));
+              log(name, 'statuts', await p.$$eval('.module-card', cs=>cs.map(c=>c.querySelector('.module-title').textContent+':'+c.dataset.status).join(' ')));
+              await p.screenshot({ path: `shots/${name}-2-resultats.png` });
+              if (after) await after(p, name);
+              await c.close();
+            }
+            await run({ viewport:{width:1440,height:960}, colorScheme:'light' }, 'bureau-clair', async (p, name) => {
+              await p.click('.module-card:has-text("Climat") .module-toggle');
+              await p.waitForTimeout(1200);
+              await p.locator('.module-card:has-text("Climat")').screenshot({ path: `shots/${name}-3-climat.png` });
+              await p.click('#radius-control button:has-text("Parcelle")').catch(()=>{});
+              await p.fill('.segmented-custom input', '450'); await p.press('.segmented-custom input','Enter');
+              await p.waitForTimeout(1500);
+              log(name, 'site-info', await p.innerText('#site-info'));
+              await p.screenshot({ path: `shots/${name}-4-distance.png` });
+              await p.click('.synthese-toggle'); await p.waitForTimeout(300);
+              await p.screenshot({ path: `shots/${name}-5-synthese-repliee.png` });
+            });
+            await run({ viewport:{width:1440,height:960}, colorScheme:'dark' }, 'bureau-sombre', async (p, name) => {
+              await p.click('.module-card:has-text("Vent") .module-toggle');
+              await p.click('.module-card:has-text("Réglementaire") .module-toggle');
+              await p.waitForTimeout(1200);
+              await p.screenshot({ path: `shots/${name}-3-modules.png`, fullPage: true });
+            });
+            await run({ ...devices['iPhone 14'], colorScheme:'light' }, 'mobile');
             await b.close();
           })();
           JS
           node t.cjs
+      - uses: actions/upload-artifact@v4
+        with: { name: shots, path: shots }
