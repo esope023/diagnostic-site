@@ -28,7 +28,7 @@ jobs:
             const card=(p,t)=>p.locator('.module-card').filter({ has: p.locator('.module-title', { hasText: new RegExp('^'+t+'$') }) });
             async function run(ctxOpts, name, after) { try { await run1(ctxOpts, name, after); } catch(e) { log(name, 'ECHEC', e.message.split('\n')[0]); } }
             async function run1(ctxOpts, name, after) {
-              const c = await b.newContext(ctxOpts); const p = await c.newPage();
+              const c = await b.newContext(ctxOpts); const p = await c.newPage(); if (process.env.NOBLUR) await p.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const st=document.createElement('style');st.textContent='*{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}';document.head.appendChild(st);}));
               p.on('pageerror', e=>log(name,'PAGEERROR', e.message.slice(0,200)));
               p.on('console', m=>{ if (m.type()==='error') log(name,'CONSOLE', m.text().slice(0,160)); });
               await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 }); await p.waitForTimeout(2500);
@@ -68,7 +68,7 @@ jobs:
             await b.close();
           })();
           JS
-          node t.cjs
+          NOBLUR=1 node t.cjs
           cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
       - if: always()
         uses: actions/upload-artifact@v4
