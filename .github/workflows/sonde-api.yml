@@ -3,23 +3,62 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  couches:
+  e2e:
+    strategy:
+      matrix:
+        include:
+          - { name: bureau, w: 1280, h: 800 }
+          - { name: mobile, w: 390, h: 844 }
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: CoSIA
+      - uses: actions/checkout@v4
+        with: { ref: claude/atelier }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci && npm run build
+        env: { GH_PAGES_BASE: /diagnostic-site/ }
+      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Atelier
         shell: bash
         run: |
           set +e
-          curl -s "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities" -o wmts.xml
-          curl -s "https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsr.xml
-          curl -s "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsv.xml
-          python3 - <<'PY'
-          import re
-          for f in ['wmts.xml','wmsr.xml','wmsv.xml']:
-              x=open(f).read()
-              ids=set(re.findall(r'<(?:ows:Identifier|Name)>([^<]*COSIA[^<]*|[^<]*OCSGE[^<]*|[^<]*[Cc]osia[^<]*)</', x))
-              print(f, sorted(ids)[:40])
-              for n in sorted(ids)[:12]:
-                  i=x.find('>'+n+'<'); j=x.rfind('<Layer',0,i); k=x.find('</Layer>',i); blk=x[j:k]
-                  print('  ',n,'| formats',re.findall(r'<Format>([^<]*)',blk)[:2],'| tms',re.findall(r'<TileMatrixSet>([^<]*)',blk)[:2],'| styles',re.findall(r'<Style[^>]*>.*?<(?:ows:Identifier|Name)>([^<]*)',blk,re.S)[:2],'| titre',re.findall(r'<(?:ows:Title|Title)>([^<]*)',blk)[:1])
-          PY
+          mkdir -p shots
+          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch();
+            const name = process.env.NAME; const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
+            const c = await b.newContext({ viewport:{width:Number(process.env.W), height:Number(process.env.H)}, deviceScaleFactor: 1 }); const p = await c.newPage();
+            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
+            const stats = {};
+            p.on('response', r=>{ const u=r.url(); const m=u.match(/LAYERS?=([^&]+)/); if (/COSIA/.test(u) && m) { const k=decodeURIComponent(m[1])+' '+r.status(); stats[k]=(stats[k]||0)+1; } });
+            const shot = async (f) => p.screenshot({ path:`shots/${name}-${f}.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log('capture',f,e.message.split('\n')[0]));
+            try {
+              await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 });
+              await p.fill('#search-input', '2 rue jean 13004 marseille');
+              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log('pas de suggestions'));
+              await p.keyboard.press('Enter');
+              await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
+              log('entete', JSON.stringify(await p.evaluate(()=>{ const r=document.querySelector('#export-btn').getBoundingClientRect(); return {droite: Math.round(r.right), largeur: innerWidth}; })));
+              await p.click('.map-atelier');
+              await p.waitForTimeout(6000);
+              if (name==='mobile') { await p.click('.at-ouvrir'); await p.waitForTimeout(500); }
+              for (const id of ['cosia','carroyage','ombres']) await p.click(`[data-couche="${id}"] .switch`).catch(e=>log('clic',id,e.message.slice(0,80)));
+              await p.click('[data-couche="repere"] .switch').catch(e=>log('clic repere', e.message.slice(0,80)));
+              await p.click('[data-couche="fond"] .switch').catch(()=>{});
+              log('repere visible', await p.evaluate(()=>{ const m=document.querySelector('.at-carte .site-marker'); return m ? getComputedStyle(m).display : 'absent'; }));
+              await p.locator('.at-panneau').screenshot({ path:`shots/${name}-panneau.jpg`, quality:60, timeout:60000 }).catch(e=>log('capture panneau', e.message.split('\n')[0]));
+              if (name==='mobile') { await p.click('.at-replier'); await p.waitForTimeout(400); }
+              await p.click('.at-mode button[data-mode="3d"]'); await p.waitForTimeout(9000);
+              log('arbres', await p.innerText('[data-couche="arbres"] .at-etat').catch(()=>''));
+              log('soleil', JSON.stringify(await p.evaluate(()=>{ const r=document.querySelector('.at-soleil').getBoundingClientRect(); return {gauche: Math.round(r.left), droite: Math.round(r.right), largeur: innerWidth}; })));
+              await shot('3d');
+              log('COSIA', JSON.stringify(stats));
+            } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
+            await b.close();
+          })();
+          JS
+          NAME=${{ matrix.name }} W=${{ matrix.w }} H=${{ matrix.h }} node t.cjs
+          cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
