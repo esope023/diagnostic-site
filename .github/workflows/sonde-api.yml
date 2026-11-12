@@ -5,50 +5,49 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with: { ref: main }
+        with: { ref: claude/climat-fiche-graphique }
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci && npm run build
         env: { GH_PAGES_BASE: /diagnostic-site/ }
       - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
-      - name: Captures
+      - name: Captures climat
         shell: bash
         run: |
           set +e
           mkdir -p shots
           npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
           cat > t.cjs <<'JS'
-          const { chromium, devices } = require('playwright');
+          const { chromium } = require('playwright');
           (async () => {
             const b = await chromium.launch();
             const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
-            const card=(p,t)=>p.locator('.module-card').filter({ has: p.locator('.module-title', { hasText: new RegExp('^'+t+'$') }) });
-            async function run(ctxOpts, name, after) { try { await run1(ctxOpts, name, after); } catch(e) { log(name, 'ECHEC', e.message.split('\n')[0]); } }
-            async function run1(ctxOpts, name, after) {
-              const c = await b.newContext(ctxOpts); const p = await c.newPage(); if (process.env.NOBLUR) await p.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const st=document.createElement('style');st.textContent='.col-map{position:static!important}';document.head.appendChild(st);}));
+            const card=(p)=>p.locator('.module-card').filter({ has: p.locator('.module-title', { hasText: /^Climat$/ }) });
+            async function site(q, name, width) {
+              const c = await b.newContext({ viewport:{width, height:1000} }); const p = await c.newPage();
               p.on('pageerror', e=>log(name,'PAGEERROR', e.message.slice(0,200)));
-              p.on('console', m=>{ if (m.type()==='error') log(name,'CONSOLE', m.text().slice(0,160)); });
-              await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 }); await p.waitForTimeout(2500);
-              await p.screenshot({ path: `shots/${name}-0-accueil.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
-              await p.fill('#search-input', '2 rue jean 13004 marseille');
-              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log(name,'pas de suggestions'));
-              await p.screenshot({ path: `shots/${name}-1-suggestions.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
-              await p.keyboard.press('Enter'); await p.waitForTimeout(500);
-              await p.waitForFunction(()=>{ const cs=[...document.querySelectorAll('.module-card')]; return cs.length>=8 && cs.every(c=>c.dataset.status && c.dataset.status!=='loading'); }, null, {timeout:300000}).catch(()=>log(name,'modules encore en cours'));
-              await p.waitForTimeout(3000); log(name, 'statuts', await p.$$eval('.module-card', cs=>cs.map(c=>c.querySelector('.module-title').textContent+':'+c.dataset.status).join(' ')));
-              await p.screenshot({ path: `shots/${name}-2-resultats.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
-              if (after) await after(p, name);
+              try {
+                await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 });
+                await p.fill('#search-input', q);
+                await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log(name,'pas de suggestions'));
+                await p.keyboard.press('Enter');
+                await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.querySelector('.module-title')?.textContent==='Climat'); return c && c.dataset.status && c.dataset.status!=='loading'; }, null, {timeout:400000}).catch(()=>log(name,'attente climat'));
+                await card(p).locator('.module-toggle').click();
+                await p.waitForTimeout(1500);
+                log(name, 'TEXTE', (await card(p).innerText()).replace(/\n+/g,' ¶ ').slice(0,1800));
+                await card(p).screenshot({ path:`shots/${name}-clair.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
+                await p.click('#theme-btn'); await p.click('#theme-btn'); await p.waitForTimeout(800);
+                await card(p).screenshot({ path:`shots/${name}-sombre.jpg`, quality:60, animations:'disabled', timeout:60000 }).catch(e=>log(name,'capture', e.message.split('\n')[0]));
+              } catch(e) { log(name,'ECHEC', e.message.split('\n')[0]); }
               await c.close();
             }
-            await run({ ...devices['iPhone 14'], colorScheme:'light' }, 'mobile');
+            await site('2 rue jean 13004 marseille', 'marseille', 1440);
+            await site('place de la mairie 35000 rennes', 'rennes', 390);
             await b.close();
           })();
           JS
           node t.cjs
           cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with: { name: shots, path: shots }
