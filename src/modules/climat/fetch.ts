@@ -179,9 +179,37 @@ export async function fetchProjections(ctx: SiteContext): Promise<ProjectionRaw[
 export interface ClimatModuleRaw {
   baseline: ClimatRaw;
   projections: ProjectionRaw[];
+  site: { lat: number; lon: number; timezone: string };
+}
+
+/**
+ * Températures moyennes journalières observées (ERA5) de 1950 à 2025, pour les
+ * bandes de réchauffement. Une seule variable : requête légère, cache long.
+ * Non bloquant : en cas d'échec, la fiche le dit et le reste s'affiche.
+ */
+export async function fetchObserve(
+  ctx: Pick<SiteContext, "lat" | "lon" | "timezone">,
+): Promise<{ time: string[]; temperature_2m_mean: number[] } | null> {
+  const url =
+    `${OPEN_METEO.archive}?latitude=${ctx.lat}&longitude=${ctx.lon}` +
+    `&start_date=1950-01-01&end_date=2025-12-31&daily=temperature_2m_mean` +
+    `&timezone=${encodeURIComponent(ctx.timezone)}`;
+  try {
+    const { daily } = await fetchJson<{ daily: { time: string[]; temperature_2m_mean: number[] } }>(url, {
+      cacheKey: "open-meteo:observe-1950-2025",
+      ttlMs: 365 * 24 * 60 * 60 * 1000,
+      timeoutMs: 60_000,
+      retries: 4,
+    });
+    return daily?.time?.length ? daily : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchClimatModule(ctx: SiteContext): Promise<ClimatModuleRaw> {
   const [baseline, projections] = await Promise.all([fetchClimat(ctx), fetchProjections(ctx)]);
-  return { baseline, projections };
+  // La série 1950-2025 est chargée ensuite, par l'affichage : elle ne retarde
+  // pas la fiche (Open-Meteo freine les requêtes lourdes successives).
+  return { baseline, projections, site: { lat: ctx.lat, lon: ctx.lon, timezone: ctx.timezone } };
 }

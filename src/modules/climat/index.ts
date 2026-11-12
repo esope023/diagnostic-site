@@ -10,7 +10,6 @@ import { tempPrecipConfig, rayonnementConfig, projectionsConfig } from "./charts
 export const climatModule: DiagnosticModule<ClimatModuleRaw, ClimatResult> = {
   id: "climat",
   label: "Climat",
-  icon: "🌤",
   scope: "site",
 
   fetchData(ctx: SiteContext) {
@@ -24,7 +23,7 @@ export const climatModule: DiagnosticModule<ClimatModuleRaw, ClimatResult> = {
     const projections = raw.projections
       .map((p) => computeProjectionHorizon(p.window.id, p.window.label, p.perModel, baseline))
       .filter((p) => p.nbModeles > 0);
-    return { ...baseline, projections };
+    return { ...baseline, projections, site: raw.site };
   },
 
   render(el: HTMLElement, result: ClimatResult) {
