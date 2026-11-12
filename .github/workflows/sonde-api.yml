@@ -25,6 +25,7 @@ jobs:
           (async () => {
             const b = await chromium.launch();
             const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
+            const card=(p,t)=>p.locator('.module-card').filter({ has: p.locator('.module-title', { hasText: new RegExp('^'+t+'$') }) });
             async function run(ctxOpts, name, after) {
               const c = await b.newContext(ctxOpts); const p = await c.newPage();
               p.on('pageerror', e=>log(name,'PAGEERROR', e.message.slice(0,200)));
@@ -42,9 +43,9 @@ jobs:
               await c.close();
             }
             await run({ viewport:{width:1440,height:960}, colorScheme:'light' }, 'bureau-clair', async (p, name) => {
-              await p.click('.module-card:has-text("Climat") .module-toggle');
+              await card(p,'Climat').locator('.module-toggle').click();
               await p.waitForTimeout(1200);
-              await p.locator('.module-card:has-text("Climat")').screenshot({ path: `shots/${name}-3-climat.png` });
+              await card(p,'Climat').screenshot({ path: `shots/${name}-3-climat.png` });
               await p.click('#radius-control button:has-text("Parcelle")').catch(()=>{});
               await p.fill('.segmented-custom input', '450'); await p.press('.segmented-custom input','Enter');
               await p.waitForTimeout(1500);
@@ -54,8 +55,8 @@ jobs:
               await p.screenshot({ path: `shots/${name}-5-synthese-repliee.png` });
             });
             await run({ viewport:{width:1440,height:960}, colorScheme:'dark' }, 'bureau-sombre', async (p, name) => {
-              await p.click('.module-card:has-text("Vent") .module-toggle');
-              await p.click('.module-card:has-text("Réglementaire") .module-toggle');
+              await card(p,'Vent').locator('.module-toggle').click();
+              await card(p,'Réglementaire').locator('.module-toggle').click();
               await p.waitForTimeout(1200);
               await p.screenshot({ path: `shots/${name}-3-modules.png`, fullPage: true });
             });
@@ -64,5 +65,6 @@ jobs:
           })();
           JS
           node t.cjs
-      - uses: actions/upload-artifact@v4
+      - if: always()
+        uses: actions/upload-artifact@v4
         with: { name: shots, path: shots }
