@@ -93,7 +93,7 @@ async function fetchProjectionModel(
   const { daily: block } = await fetchJson<{ daily: DailyTemperatureBlock }>(url, {
     cacheKey: `open-meteo:climate-${model}-${window.id}`,
     ttlMs: 365 * 24 * 60 * 60 * 1000, // projections CMIP6 : ne changent pas d'une visite à l'autre
-    timeoutMs: 40_000,
+    timeoutMs: 90_000, // série de 60 ans : réponse lourde
   });
   if (!block?.time?.length) {
     throw new Error(`Réponse inexploitable pour le modèle ${model} (${window.id})`);
@@ -101,26 +101,78 @@ async function fetchProjectionModel(
   return block;
 }
 
-export interface ProjectionRaw {
-  window: ProjectionWindow;
-  /** Une entrée par modèle (voir PROJECTION_MODELS) ; un échec isolé est filtré, pas fatal. */
-  perModel: DailyTemperatureBlock[];
+/** Période de référence des modèles, identique à celle des observations ERA5. */
+export const MODEL_REFERENCE_WINDOW: ProjectionWindow = {
+  id: "ref",
+  label: "Référence modèle 1991-2020",
+  start: "1991-01-01",
+  end: "2020-12-31",
+};
+
+/** Séries d'un modèle : horizon futur et sa propre période de référence. */
+export interface ModelSeries {
+  model: string;
+  future: DailyTemperatureBlock;
+  /** 1991-2020 du même modèle ; null si indisponible (le modèle est alors écarté). */
+  reference: DailyTemperatureBlock | null;
 }
 
+export interface ProjectionRaw {
+  window: ProjectionWindow;
+  /** Une entrée par modèle disponible ; un échec isolé est filtré, pas fatal. */
+  perModel: ModelSeries[];
+}
+
+/** Découpe une série 1991-2050 sur une fenêtre [start, end] (dates ISO). */
+function slice(block: DailyTemperatureBlock, w: ProjectionWindow): DailyTemperatureBlock {
+  const idx: number[] = [];
+  block.time.forEach((t, i) => {
+    if (t >= w.start && t <= w.end) idx.push(i);
+  });
+  return {
+    time: idx.map((i) => block.time[i]),
+    temperature_2m_max: idx.map((i) => block.temperature_2m_max[i]),
+    temperature_2m_min: idx.map((i) => block.temperature_2m_min[i]),
+    temperature_2m_mean: idx.map((i) => block.temperature_2m_mean[i]),
+  };
+}
+
+const FULL_WINDOW: ProjectionWindow = {
+  id: "1991-2050",
+  label: "Série complète 1991-2050",
+  start: MODEL_REFERENCE_WINDOW.start,
+  end: "2050-12-31",
+};
+
+/**
+ * Projections par la méthode des écarts : pour chaque modèle, on récupère en
+ * UNE requête la série 1991-2050 (référence ET horizons), gardée en cache un
+ * an. Comparer directement un modèle aux observations confondrait son biais
+ * avec le réchauffement (constaté le 12/11/2026 à Marseille : un modèle compte
+ * 21 nuits tropicales de trop dès 1991-2020).
+ *
+ * Seuls les modèles complets sont gardés, et ce sont les mêmes pour tous les
+ * horizons : sinon 2030 et 2050 seraient calculés sur des modèles différents
+ * et deviendraient incomparables (constaté avec des refus 429 partiels).
+ */
 export async function fetchProjections(ctx: SiteContext): Promise<ProjectionRaw[]> {
-  const results: ProjectionRaw[] = [];
-
-  for (const window of PROJECTION_WINDOWS) {
-    const settled = await Promise.allSettled(
-      PROJECTION_MODELS.map((model) => fetchProjectionModel(ctx, model, window)),
-    );
-    const perModel = settled
-      .filter((r): r is PromiseFulfilledResult<DailyTemperatureBlock> => r.status === "fulfilled")
-      .map((r) => r.value);
-    results.push({ window, perModel });
+  const series = new Map<string, DailyTemperatureBlock>();
+  // Une requête à la fois (Open-Meteo limite les requêtes lourdes).
+  for (const model of PROJECTION_MODELS) {
+    try {
+      series.set(model, await fetchProjectionModel(ctx, model, FULL_WINDOW));
+    } catch {
+      /* modèle indisponible : écarté de l'ensemble, pas fatal */
+    }
   }
-
-  return results;
+  return PROJECTION_WINDOWS.map((window) => ({
+    window,
+    perModel: [...series].map(([model, full]) => ({
+      model,
+      future: slice(full, window),
+      reference: slice(full, MODEL_REFERENCE_WINDOW),
+    })),
+  }));
 }
 
 /** Forme combinée consommée par le module (contrat DiagnosticModule : un seul Raw). */

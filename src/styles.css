@@ -281,3 +281,13 @@ body {
 .move-bar-go { background: var(--accent); color: #fff; }
 .move-bar-go:disabled { opacity: 0.7; cursor: progress; }
 .move-bar-cancel { background: var(--panel); color: var(--accent); }
+
+/* --- Climat : phrase-titre et fourchettes entre modèles ------------------- */
+.climat-headline {
+  display: flex; align-items: center; gap: 18px; margin: 4px 0 14px;
+  padding: 14px 18px; border-radius: 14px; background: var(--panel);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.climat-headline p { margin: 0; font-size: 1rem; line-height: 1.4; }
+.climat-facteur { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; color: #B83A16; line-height: 1; }
+.range { color: var(--muted); font-size: 0.85em; white-space: nowrap; }

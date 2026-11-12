@@ -83,8 +83,14 @@ export async function fetchJson<T>(url: string, opts: FetchJsonOptions): Promise
     return data;
   }
 
-  const data = /^https:\/\/[a-z-]+\.open-meteo\.com\//.test(url)
-    ? await openMeteoLimit(() => withRetries<T>(url, Math.max(retries, 3), timeoutMs, 10_000))
+  // Open-Meteo limite le volume par minute : après un 429, on attend assez
+  // longtemps pour que la minute suivante soit libre (requêtes climat lourdes).
+  const isOpenMeteo = /^https:\/\/[a-z-]+\.open-meteo\.com\//.test(url);
+  const isClimateApi = url.startsWith("https://climate-api.open-meteo.com/");
+  const data = isOpenMeteo
+    ? await openMeteoLimit(() =>
+        withRetries<T>(url, Math.max(retries, isClimateApi ? 4 : 3), timeoutMs, isClimateApi ? 25_000 : 10_000),
+      )
     : await withRetries<T>(url, retries, timeoutMs);
   await cacheSet(key, data, ttl);
   return data;

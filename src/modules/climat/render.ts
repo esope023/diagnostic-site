@@ -34,25 +34,31 @@ export function renderClimat(el: HTMLElement, r: ClimatResult): void {
     période 1991-2020). DJU base 18 °C. Vague de chaleur = ≥ 3 jours consécutifs
     à Tmax ≥ 30 °C (définition simplifiée).</p>
 
-    <h3 class="module-subtitle">Projections climatiques (CMIP6)</h3>
+    <h3 class="module-subtitle">Projections climatiques</h3>
     ${
       r.projections.length === 0
-        ? `<p class="error">Projections indisponibles (service Open-Meteo Climate momentanément inaccessible).</p>`
-        : `<div class="projections-grid">
+        ? `<p class="error">Projections indisponibles (service Open-Meteo Climate momentanément
+           inaccessible). Ce n'est pas une absence d'évolution — réessayer plus tard.</p>`
+        : `${headline(r)}
+          <div class="projections-grid">
             ${r.projections
               .map(
                 (p) => `
               <div class="projection-card">
                 <h4>${p.label}</h4>
                 <ul class="projection-list">
+                  <li>Nuits tropicales : <strong>${p.indicators.nuitsTropicales} /an</strong>
+                    (${fmtDelta(p.deltaNuitsTropicales, "")}) ${range(p.fourchette.nuitsTropicales)}</li>
+                  <li>Jours ≥ 30 °C : <strong>${p.indicators.joursChaleur30} /an</strong>
+                    (${fmtDelta(p.deltaJours30, "")}) ${range(p.fourchette.joursChaleur30)}</li>
                   <li>Temp. moyenne : <strong>${p.indicators.tMoyenneAnnuelle} °C</strong>
-                    (${fmtDelta(p.deltaTemp, "°C")})</li>
-                  <li>Nuits tropicales : <strong>${p.indicators.nuitsTropicales} j/an</strong>
-                    (${fmtDelta(p.deltaNuitsTropicales, "j")}, ${fmtPct(p.pctNuitsTropicales)})</li>
-                  <li>Jours ≥ 30 °C : <strong>${p.indicators.joursChaleur30} j/an</strong>
-                    (${fmtDelta(p.deltaJours30, "j")}, ${fmtPct(p.pctJours30)})</li>
+                    (${fmtDelta(p.deltaTemp, "°C")}) ${range(p.fourchette.tMoyenneAnnuelle, " °C")}</li>
+                  <li>Besoins de chauffage : <strong>${p.indicators.djuChauffage} DJU</strong>
+                    (${fmtPct(p.pctDjuChauffage)})</li>
+                  <li>Besoins de rafraîchissement : <strong>${p.indicators.djuClim} DJU</strong>
+                    (${fmtPct(p.pctDjuClim)})</li>
                   <li>Vagues de chaleur : <strong>${p.indicators.vaguesChaleur} /an</strong>
-                    (${fmtDelta(p.deltaVagues, "")}, ${fmtPct(p.pctVagues)})</li>
+                    (${fmtDelta(p.deltaVagues, "")})</li>
                 </ul>
               </div>`,
               )
@@ -60,14 +66,13 @@ export function renderClimat(el: HTMLElement, r: ClimatResult): void {
           </div>
           <div class="chart-box"><canvas data-chart="proj"></canvas></div>`
     }
-    <p class="module-note">Projections CMIP6 (Open-Meteo Climate API), moyenne de
-    ${r.projections[0]?.indicators ? 3 : 0} modèles à couverture complète en température
-    (ensemble simplifié, pas les 7 modèles disponibles). Horizon 2050 = fin de période
-    disponible (l'API s'arrête en 2050), pas une valeur ponctuelle à cette date précise.
-    Pas de choix de scénario d'émission possible : trajectoire proche de RCP8.5 jusqu'en
-    2050. Écarts calculés avec exactement la même méthode que la référence 1991-2020.
-    "n.d." sur un pourcentage signifie une référence à 0 (le phénomène apparaîtrait,
-    un % n'aurait pas de sens).</p>
+    <p class="module-note">Projections : ${r.projections[0]?.nbModeles ?? 0} modèles climatiques à
+    haute résolution (Open-Meteo Climate API, scénario d'émissions élevées, données jusqu'en 2050),
+    à rapprocher de la trajectoire de référence française (TRACC : +2 °C en 2030, +2,7 °C en 2050).
+    <strong>Méthode des écarts</strong> : chaque modèle est comparé à sa propre période 1991-2020,
+    et cet écart est ajouté aux observations — utilisés tels quels, les modèles se trompent déjà
+    sur le climat actuel du site, et ce biais serait pris pour du réchauffement. Entre
+    parenthèses grises : fourchette entre modèles. « n.d. » sur un pourcentage : référence à 0.</p>
   `;
 
   mountChart(el, "tp", tempPrecipConfig(r));
@@ -75,6 +80,27 @@ export function renderClimat(el: HTMLElement, r: ClimatResult): void {
   if (r.projections.length > 0) {
     mountChart(el, "proj", projectionsConfig(r, r.projections));
   }
+}
+
+/** Fourchette entre modèles, discrète, après la valeur moyenne. */
+function range(f: { min: number; max: number }, unit = ""): string {
+  if (!Number.isFinite(f.min) || f.min === f.max) return "";
+  return `<span class="range">${f.min} à ${f.max}${unit}</span>`;
+}
+
+/** Phrase-titre à l'horizon 2050 : multiplication des nuits tropicales. */
+function headline(r: ClimatResult): string {
+  const h = r.projections.find((p) => p.id === "2050") ?? r.projections[r.projections.length - 1];
+  if (!h || r.nuitsTropicales <= 0) return "";
+  const ratio = h.indicators.nuitsTropicales / r.nuitsTropicales;
+  const facteur = ratio >= 1.15 ? `×${(Math.round(ratio * 10) / 10).toString().replace(".", ",")}` : "";
+  return `<div class="climat-headline">
+    ${facteur ? `<span class="climat-facteur">${facteur}</span>` : ""}
+    <p>À l'horizon 2050, environ <strong>${Math.round(h.indicators.nuitsTropicales)} nuits
+    tropicales par an</strong>, contre ${Math.round(r.nuitsTropicales)} sur 1991-2020
+    <span class="range">(fourchette ${Math.round(h.fourchette.nuitsTropicales.min)} à
+    ${Math.round(h.fourchette.nuitsTropicales.max)})</span>.</p>
+  </div>`;
 }
 
 function mountChart(el: HTMLElement, key: string, config: ChartConfiguration): void {
