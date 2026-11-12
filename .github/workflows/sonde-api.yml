@@ -3,9 +3,43 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  climat:
+  e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - run: python3 .github/sonde/climat.py
+        with: { ref: claude/climat-methode-ecarts }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci && npm run build
+        env: { GH_PAGES_BASE: /diagnostic-site/ }
+      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Test réel climat
+        shell: bash
+        run: |
+          set +e
+          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
+          cat > t.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch(); const p = await b.newPage({ viewport:{width:1280,height:900} });
+            const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
+            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
+            p.on('response', r=>{ const u=r.url(); if (/open-meteo/.test(u) && r.status()!==200) log('HTTP', r.status(), u.slice(0,140)); });
+            await p.goto('http://localhost:4173/diagnostic-site/');
+            await p.fill('#search-input', '2 rue jean 13004 marseille');
+            await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>{});
+            await p.keyboard.press('Enter');
+            await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.textContent.includes('Climat')); return c && c.dataset.status && c.dataset.status!=='loading'; }, null, {timeout:400000}).catch(()=>log('attente Climat'));
+            const txt = await p.$$eval('.module-card', cs=>cs.filter(c=>c.textContent.includes('Climat')).map(c=>{ c.querySelector('.module-toggle').click(); return c; }).length);
+            await p.waitForTimeout(800);
+            const climat = await p.$$eval('.module-card', cs=>cs.filter(c=>c.querySelector('.module-title').textContent.includes('Climat')).map(c=>c.innerText.replace(/\n+/g,' ¶ ')));
+            const s = climat[0]||''; const i = s.indexOf('Projections climatiques');
+            log('STATUT', await p.$$eval('.module-card', cs=>cs.filter(c=>c.querySelector('.module-title').textContent.includes('Climat')).map(c=>c.dataset.status)[0]));
+            log('CLIMAT', s.slice(i, i+1500));
+            const synth = await p.innerText('#synthese').catch(()=> '');
+            log('SYNTHESE', synth.replace(/\n+/g,' ¶ ').slice(0,700));
+            await b.close();
+          })();
+          JS
+          node t.cjs
