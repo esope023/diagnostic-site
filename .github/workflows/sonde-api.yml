@@ -36,9 +36,9 @@ jobs:
               await p.fill('#search-input', '2 rue jean 13004 marseille');
               await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000}).catch(()=>log(name,'pas de suggestions'));
               await p.screenshot({ path: `shots/${name}-1-suggestions.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
-              await p.keyboard.press('Enter');
+              await p.keyboard.press('Enter'); await p.waitForTimeout(500);
               await p.waitForFunction(()=>{ const cs=[...document.querySelectorAll('.module-card')]; return cs.length>=8 && cs.every(c=>c.dataset.status && c.dataset.status!=='loading'); }, null, {timeout:300000}).catch(()=>log(name,'modules encore en cours'));
-              log(name, 'statuts', await p.$$eval('.module-card', cs=>cs.map(c=>c.querySelector('.module-title').textContent+':'+c.dataset.status).join(' ')));
+              await p.waitForTimeout(3000); log(name, 'statuts', await p.$$eval('.module-card', cs=>cs.map(c=>c.querySelector('.module-title').textContent+':'+c.dataset.status).join(' ')));
               await p.screenshot({ path: `shots/${name}-2-resultats.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
               if (after) await after(p, name);
               await c.close();
@@ -55,7 +55,10 @@ jobs:
               await p.click('.synthese-toggle'); await p.waitForTimeout(300);
               await p.screenshot({ path: `shots/${name}-5-synthese-repliee.jpg`, quality: 60, animations: 'disabled', timeout: 60000 });
             });
-            await run({ viewport:{width:1440,height:960}, colorScheme:'dark' }, 'bureau-sombre', async (p, name) => {
+            await run({ viewport:{width:1440,height:960}, colorScheme:'light' }, 'bureau-sombre', async (p, name) => {
+              await p.click('#theme-btn'); await p.click('#theme-btn'); await p.waitForTimeout(1500);
+              log(name, 'theme', await p.evaluate(()=>document.documentElement.dataset.theme));
+              await p.screenshot({ path: `shots/${name}-2b-sombre.jpg`, quality: 60, animations: 'disabled', timeout: 60000 }).catch(e=>log(name,'capture sombre', e.message.split('\n')[0]));
               await card(p,'Vent').locator('.module-toggle').click();
               await card(p,'Réglementaire').locator('.module-toggle').click();
               await p.waitForTimeout(1200);
