@@ -11,6 +11,8 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+  push:
+    branches: [claude/climat-calcul]
 
 permissions:
   contents: write
