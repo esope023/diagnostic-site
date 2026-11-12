@@ -19,9 +19,11 @@ export const climatModule: DiagnosticModule<ClimatModuleRaw, ClimatResult> = {
 
   compute(raw: ClimatModuleRaw) {
     const baseline = computeClimat(raw.baseline);
-    const projections = raw.projections.map((p) =>
-      computeProjectionHorizon(p.window.id, p.window.label, p.perModel, baseline),
-    );
+    // Un horizon sans aucun modèle exploitable (références indisponibles)
+    // est retiré plutôt qu'affiché avec des valeurs vides.
+    const projections = raw.projections
+      .map((p) => computeProjectionHorizon(p.window.id, p.window.label, p.perModel, baseline))
+      .filter((p) => p.nbModeles > 0);
     return { ...baseline, projections };
   },
 
@@ -34,9 +36,9 @@ export const climatModule: DiagnosticModule<ClimatModuleRaw, ClimatResult> = {
       const pct = (v: number | null) => (v === null ? "n.d." : `${v > 0 ? "+" : ""}${v} %`);
       return (
         `${p.label} : temp. moyenne ${p.indicators.tMoyenneAnnuelle} °C ` +
-        `(${p.deltaTemp > 0 ? "+" : ""}${p.deltaTemp} °C), nuits tropicales ` +
-        `${p.indicators.nuitsTropicales} j/an (${pct(p.pctNuitsTropicales)}), ` +
-        `jours ≥ 30 °C ${p.indicators.joursChaleur30} j/an (${pct(p.pctJours30)}), ` +
+        `(${p.deltaTemp > 0 ? "+" : ""}${p.deltaTemp} °C ; ${p.fourchette.tMoyenneAnnuelle.min} à ${p.fourchette.tMoyenneAnnuelle.max} °C selon les modèles), nuits tropicales ` +
+        `${p.indicators.nuitsTropicales} j/an (${pct(p.pctNuitsTropicales)} ; ${p.fourchette.nuitsTropicales.min} à ${p.fourchette.nuitsTropicales.max}), ` +
+        `jours ≥ 30 °C ${p.indicators.joursChaleur30} j/an (${pct(p.pctJours30)} ; ${p.fourchette.joursChaleur30.min} à ${p.fourchette.joursChaleur30.max}), ` +
         `vagues de chaleur ${p.indicators.vaguesChaleur}/an (${pct(p.pctVagues)}).`
       );
     });
@@ -83,6 +85,10 @@ export const climatModule: DiagnosticModule<ClimatModuleRaw, ClimatResult> = {
           "d'émission possible : trajectoire proche de RCP8.5 jusqu'en 2050.",
         "Horizon 2050 = fin de la période disponible dans l'API (données jusqu'à 2050), " +
           "pas une valeur ponctuelle à cette date.",
+        "Méthode des écarts : pour chaque modèle, écart entre l'horizon et sa propre " +
+          "période 1991-2020, ajouté aux observations ERA5 ; la fourchette donne les valeurs " +
+          "minimale et maximale entre modèles. Horizons à rapprocher de la trajectoire de " +
+          "référence française (TRACC) : +2 °C en 2030, +2,7 °C en 2050.",
         ...projectionNotes,
       ],
     };

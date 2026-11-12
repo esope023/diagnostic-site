@@ -1,6 +1,6 @@
 // Calculs climat : normales mensuelles, DJU, nuits tropicales, forte chaleur.
 // Pur, sans I/O. Facile à tester unitairement.
-import type { ClimatRaw } from "./fetch";
+import type { ClimatRaw, ModelSeries } from "./fetch";
 
 export interface ClimatResult {
   years: number;
@@ -68,7 +68,7 @@ function round1(v: number): number {
  */
 export function computeTemperatureIndicators(daily: DailyTemperatureBlock): TemperatureIndicators {
   const n = daily.time.length;
-  const years = new Set(daily.time.map((t) => t.slice(0, 4))).size || 1;
+  const ok = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
 
   const BASE_CHAUFF = 18;
   const BASE_CLIM = 18;
@@ -79,11 +79,25 @@ export function computeTemperatureIndicators(daily: DailyTemperatureBlock): Temp
   let jours35 = 0;
   let vagues = 0;
   let run = 0;
+  let sumMean = 0;
+  let valid = 0;
+  const validYears = new Set<string>();
 
   for (let i = 0; i < n; i++) {
-    const tmean = daily.temperature_2m_mean[i];
     const tmin = daily.temperature_2m_min[i];
     const tmax = daily.temperature_2m_max[i];
+    // Jours incomplets ignorés : une valeur manquante comptée 0 °C ferait
+    // chuter la moyenne et gonfler les besoins de chauffage (constaté sur un
+    // modèle de projection le 12/11/2026). Moyenne absente : (min + max) / 2.
+    if (!ok(tmin) || !ok(tmax)) {
+      run = 0;
+      continue;
+    }
+    const tmeanRaw = daily.temperature_2m_mean[i];
+    const tmean = ok(tmeanRaw) ? tmeanRaw : (tmin + tmax) / 2;
+    valid++;
+    sumMean += tmean;
+    validYears.add(daily.time[i].slice(0, 4));
 
     if (tmean < BASE_CHAUFF) djuChauff += BASE_CHAUFF - tmean;
     if (tmean > BASE_CLIM) djuClim += tmean - BASE_CLIM;
@@ -99,9 +113,13 @@ export function computeTemperatureIndicators(daily: DailyTemperatureBlock): Temp
     }
   }
 
+  // Années équivalentes de données valides (365,25 jours), pour des comptages
+  // annuels justes même si une partie de la série manque.
+  const years = valid > 0 ? valid / 365.25 : 1;
+
   return {
-    years,
-    tMoyenneAnnuelle: round1(mean(daily.temperature_2m_mean)),
+    years: validYears.size || 1,
+    tMoyenneAnnuelle: round1(valid > 0 ? sumMean / valid : NaN),
     djuChauffage: Math.round(djuChauff / years),
     djuClim: Math.round(djuClim / years),
     nuitsTropicales: round1(nuitsTrop / years),
@@ -131,9 +149,10 @@ export function computeClimat(raw: ClimatRaw): Omit<ClimatResult, "projections">
 
   for (let i = 0; i < n; i++) {
     const m = monthOf(d.time[i]);
-    tMaxByMonth[m].push(d.temperature_2m_max[i]);
-    tMinByMonth[m].push(d.temperature_2m_min[i]);
-    tMeanByMonth[m].push(d.temperature_2m_mean[i]);
+    // Valeurs manquantes écartées (sinon comptées 0 °C dans la moyenne).
+    if (Number.isFinite(d.temperature_2m_max[i])) tMaxByMonth[m].push(d.temperature_2m_max[i]);
+    if (Number.isFinite(d.temperature_2m_min[i])) tMinByMonth[m].push(d.temperature_2m_min[i]);
+    if (Number.isFinite(d.temperature_2m_mean[i])) tMeanByMonth[m].push(d.temperature_2m_mean[i]);
     precipSumByMonth[m] += d.precipitation_sum[i] ?? 0;
     et0SumByMonth[m] += d.et0_fao_evapotranspiration[i] ?? 0;
     radSumByMonth[m] += d.shortwave_radiation_sum[i] ?? 0;
@@ -159,10 +178,28 @@ export function computeClimat(raw: ClimatRaw): Omit<ClimatResult, "projections">
 // Projections climatiques (CMIP6, via Open-Meteo Climate API).
 // ---------------------------------------------------------------------------
 
+/** Fourchette entre modèles (valeurs projetées min et max). */
+export interface Fourchette {
+  min: number;
+  max: number;
+}
+
 export interface ProjectionHorizon {
   id: string;
   label: string;
+  /** Moyenne des modèles, après méthode des écarts. */
   indicators: TemperatureIndicators;
+  /** Fourchette entre modèles pour les principaux indicateurs. */
+  fourchette: {
+    tMoyenneAnnuelle: Fourchette;
+    nuitsTropicales: Fourchette;
+    joursChaleur30: Fourchette;
+    joursChaleur35: Fourchette;
+    djuChauffage: Fourchette;
+    djuClim: Fourchette;
+  };
+  /** Nombre de modèles utilisés (ceux dont la référence 1991-2020 a répondu). */
+  nbModeles: number;
   /** Écart absolu vs référence 1991-2020. */
   deltaTemp: number;
   deltaNuitsTropicales: number;
@@ -172,6 +209,8 @@ export interface ProjectionHorizon {
   pctNuitsTropicales: number | null;
   pctJours30: number | null;
   pctVagues: number | null;
+  pctDjuChauffage: number | null;
+  pctDjuClim: number | null;
 }
 
 function pctChange(base: number, future: number): number | null {
@@ -179,36 +218,74 @@ function pctChange(base: number, future: number): number | null {
   return Math.round(((future - base) / base) * 1000) / 10;
 }
 
+type IndicKey = Exclude<keyof TemperatureIndicators, "years">;
+const INDIC_KEYS: IndicKey[] = [
+  "tMoyenneAnnuelle",
+  "djuChauffage",
+  "djuClim",
+  "nuitsTropicales",
+  "joursChaleur30",
+  "joursChaleur35",
+  "vaguesChaleur",
+];
+
 /**
- * Moyenne les indicateurs de plusieurs modèles CMIP6 pour un même horizon
- * (ensemble simplifié à 3 modèles, voir fetch.ts) et calcule les écarts vs
- * référence 1991-2020.
+ * Méthode des écarts : pour chaque modèle, écart = horizon − sa propre
+ * référence 1991-2020 ; valeur projetée = observation ERA5 + écart (bornée à 0
+ * pour les comptages). On moyenne ensuite les modèles et on garde leur
+ * fourchette. Un modèle sans référence est écarté : sans elle, son biais se
+ * confondrait avec le réchauffement.
  */
 export function computeProjectionHorizon(
   id: string,
   label: string,
-  perModelDaily: DailyTemperatureBlock[],
+  perModel: ModelSeries[],
   baseline: TemperatureIndicators,
 ): ProjectionHorizon {
-  const perModel = perModelDaily.map(computeTemperatureIndicators);
-  const avg = (pick: (t: TemperatureIndicators) => number) =>
-    round1(mean(perModel.map(pick)));
+  const projected: TemperatureIndicators[] = perModel
+    .filter((m): m is ModelSeries & { reference: DailyTemperatureBlock } => m.reference !== null)
+    .map((m) => {
+      const fut = computeTemperatureIndicators(m.future);
+      const ref = computeTemperatureIndicators(m.reference);
+      const out = { years: fut.years } as TemperatureIndicators;
+      for (const k of INDIC_KEYS) {
+        const v = baseline[k] + (fut[k] - ref[k]);
+        out[k] = k === "tMoyenneAnnuelle" ? v : Math.max(0, v);
+      }
+      return out;
+    });
+
+  const avg = (k: IndicKey) => mean(projected.map((t) => t[k]));
+  const range = (k: IndicKey, digits = 1): Fourchette => {
+    const vals = projected.map((t) => t[k]);
+    const r = (v: number) => (digits === 0 ? Math.round(v) : round1(v));
+    return vals.length ? { min: r(Math.min(...vals)), max: r(Math.max(...vals)) } : { min: NaN, max: NaN };
+  };
 
   const indicators: TemperatureIndicators = {
-    years: perModel[0]?.years ?? 0,
-    tMoyenneAnnuelle: avg((t) => t.tMoyenneAnnuelle),
-    djuChauffage: Math.round(avg((t) => t.djuChauffage)),
-    djuClim: Math.round(avg((t) => t.djuClim)),
-    nuitsTropicales: avg((t) => t.nuitsTropicales),
-    joursChaleur30: avg((t) => t.joursChaleur30),
-    joursChaleur35: avg((t) => t.joursChaleur35),
-    vaguesChaleur: avg((t) => t.vaguesChaleur),
+    years: projected[0]?.years ?? 0,
+    tMoyenneAnnuelle: round1(avg("tMoyenneAnnuelle")),
+    djuChauffage: Math.round(avg("djuChauffage")),
+    djuClim: Math.round(avg("djuClim")),
+    nuitsTropicales: round1(avg("nuitsTropicales")),
+    joursChaleur30: round1(avg("joursChaleur30")),
+    joursChaleur35: round1(avg("joursChaleur35")),
+    vaguesChaleur: round1(avg("vaguesChaleur")),
   };
 
   return {
     id,
     label,
     indicators,
+    fourchette: {
+      tMoyenneAnnuelle: range("tMoyenneAnnuelle"),
+      nuitsTropicales: range("nuitsTropicales"),
+      joursChaleur30: range("joursChaleur30"),
+      joursChaleur35: range("joursChaleur35"),
+      djuChauffage: range("djuChauffage", 0),
+      djuClim: range("djuClim", 0),
+    },
+    nbModeles: projected.length,
     deltaTemp: round1(indicators.tMoyenneAnnuelle - baseline.tMoyenneAnnuelle),
     deltaNuitsTropicales: round1(indicators.nuitsTropicales - baseline.nuitsTropicales),
     deltaJours30: round1(indicators.joursChaleur30 - baseline.joursChaleur30),
@@ -216,5 +293,7 @@ export function computeProjectionHorizon(
     pctNuitsTropicales: pctChange(baseline.nuitsTropicales, indicators.nuitsTropicales),
     pctJours30: pctChange(baseline.joursChaleur30, indicators.joursChaleur30),
     pctVagues: pctChange(baseline.vaguesChaleur, indicators.vaguesChaleur),
+    pctDjuChauffage: pctChange(baseline.djuChauffage, indicators.djuChauffage),
+    pctDjuClim: pctChange(baseline.djuClim, indicators.djuClim),
   };
 }
