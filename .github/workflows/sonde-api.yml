@@ -6,31 +6,30 @@ jobs:
   couches:
     runs-on: ubuntu-latest
     steps:
-      - name: Capacités WMTS / WMS
+      - name: Couches
         shell: bash
         run: |
           set +e
-          O='-H Origin:https://esope023.github.io'
-          curl -s "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities" -o wmts.xml; ls -la wmts.xml
-          echo "== WMTS couches utiles"; grep -o '<ows:Identifier>[^<]*</ows:Identifier>' wmts.xml | sed 's/<[^>]*>//g' | grep -iE "CADASTR|PROTECTED|URBAN|PLU|ZONE|NATURA|ZNIEFF|ARGILE|RISQ|BATI|HYDRO|FOREST|VEGET|BDTOPO|LIDAR|ELEVATION|PLANIGN|ORTHOIMAGERY.ORTHOPHOTOS$" | sort -u | head -80
-          echo "== Styles / formats cadastre"; python3 - <<'PY'
+          curl -s "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsv.xml
+          echo "== WMS-V noms en minuscules / PROTECTED / Natura"; grep -o '<Name>[^<]*</Name>' wmsv.xml | sed 's/<[^>]*>//g' | grep -E "^[a-z_]+$|PROTECTED|atura|ZNIEFF|NATURA" | sort -u | head -80
+          curl -s "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetCapabilities" -o wmts.xml
+          echo "== WMTS PROTECTED / Natura / ZNIEFF"; grep -o '<ows:Identifier>[^<]*</ows:Identifier>' wmts.xml | sed 's/<[^>]*>//g' | grep -iE "PROTECT|atura|ZNIEFF|PARC|RESERV" | sort -u | head -30
+          python3 - <<'PY'
           import re
           x=open('wmts.xml').read()
-          for name in ['CADASTRALPARCELS.PARCELLAIRE_EXPRESS','PROTECTEDAREAS.ZNIEFF1','PROTECTEDAREAS.SIC','PROTECTEDAREAS.ZPS','PROTECTEDAREAS.APB','PROTECTEDAREAS.PN','PROTECTEDAREAS.PNR','PROTECTEDAREAS.RN']:
+          for name in ['Natura_2000','IGNF_BD-FRANCE-TOPO-VEGETATION','GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2','HR.ORTHOIMAGERY.ORTHOPHOTOS']:
               i=x.find('<ows:Identifier>'+name+'</ows:Identifier>')
               if i<0: print(name,'ABSENT'); continue
-              j=x.rfind('<Layer>',0,i); k=x.find('</Layer>',i)
-              blk=x[j:k]
-              print(name, re.findall(r'<Format>([^<]*)',blk), re.findall(r'<Style[^>]*>\s*<ows:Title>[^<]*</ows:Title>\s*<ows:Abstract>[^<]*</ows:Abstract>\s*<ows:Identifier>([^<]*)',blk) or re.findall(r'<Style[^>]*>.*?<ows:Identifier>([^<]*)',blk,re.S)[:3], re.findall(r'<TileMatrixSet>([^<]*)',blk)[:2])
+              j=x.rfind('<Layer>',0,i); k=x.find('</Layer>',i); blk=x[j:k]
+              print(name, re.findall(r'<Format>([^<]*)',blk), re.findall(r'<Style[^>]*>.*?<ows:Identifier>([^<]*)',blk,re.S)[:3], re.findall(r'<TileMatrixSet>([^<]*)',blk)[:2])
           PY
-          curl -s "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsv.xml; ls -la wmsv.xml
-          echo "== WMS-V couches (urbanisme, servitudes)"; grep -o '<Name>[^<]*</Name>' wmsv.xml | sed 's/<[^>]*>//g' | grep -iE "du|psmv|prescription|info|zone|sup|assiette|generateur|plu|urba" | sort -u | head -60
-          curl -s "https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o wmsr.xml; ls -la wmsr.xml
-          echo "== WMS-R couches utiles"; grep -o '<Name>[^<]*</Name>' wmsr.xml | sed 's/<[^>]*>//g' | grep -iE "CADASTR|PROTECTED|URBAN|PLU|NATURA|ZNIEFF|ARGIL|RISQ|VEGET|FOREST|LIDAR|MNS|MNH|HEIGHT" | sort -u | head -60
-          echo "== Géorisques WMS"; curl -s "https://www.georisques.gouv.fr/services?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0" -o geor.xml; ls -la geor.xml; grep -o '<Name>[^<]*</Name>' geor.xml | sed 's/<[^>]*>//g' | grep -iE "ARG|ALEA|INOND|PPR|CAVITE|MVT|SIS" | head -40
-          echo "== CORS"
-          for u in \
-            "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=PCI%20vecteur&TILEMATRIXSET=PM&TILEMATRIX=17&TILEROW=48120&TILECOL=67526&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&FORMAT=image/png" \
-            "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=zone_secteur&STYLES=&CRS=EPSG:3857&BBOX=597000,5370000,598000,5371000&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true" \
-            "https://www.georisques.gouv.fr/services?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ALEARG&STYLES=&CRS=EPSG:3857&BBOX=597000,5370000,598000,5371000&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true"; do
-            echo "-- $u" | cut -c1-140; curl -s -D - -o /tmp/t.bin $O "$u" | grep -iE "^HTTP|content-type|access-control-allow-origin"; file /tmp/t.bin | cut -c1-80; done
+          B="BBOX=597000,5370000,598000,5371000&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true&CRS=EPSG:3857&STYLES="
+          for L in zone_secteur prescription_surf prescription_lin info_surf assiette_sup_s assiette_sup_l assiette_sup_p generateur_sup_s secteur_cc doc_urba; do
+            curl -s -o t.bin "https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=$L&$B"; echo "$L : $(file -b t.bin | cut -c1-40)"; done
+          echo "== tuile cadastre réelle (Marseille z17)"
+          python3 -c "
+          import math
+          lat,lon,z=43.3125,5.4,17
+          n=2**z; x=int((lon+180)/360*n); y=int((1-math.log(math.tan(math.radians(lat))+1/math.cos(math.radians(lat)))/math.pi)/2*n); print(x,y)" > xy; read X Y < xy
+          for S in "PCI%20vecteur" normal; do curl -s -o t.bin "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=$S&TILEMATRIXSET=PM&TILEMATRIX=17&TILEROW=$Y&TILECOL=$X&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&FORMAT=image/png"; echo "cadastre $S : $(file -b t.bin | cut -c1-40)"; done
+          curl -s -o t.bin "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX=15&TILEROW=$((Y/4))&TILECOL=$((X/4))&LAYER=Natura_2000&FORMAT=image/png"; echo "natura : $(file -b t.bin | cut -c1-40)"
