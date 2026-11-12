@@ -3,45 +3,25 @@ on:
   push:
     branches: [claude/sonde-api]
 jobs:
-  e2e:
+  gpu:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with: { ref: claude/secours-adresse }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci && npm run build
-        env: { GH_PAGES_BASE: /diagnostic-site/ }
-      - run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
-      - name: Test réel adresse
+      - name: API Carto GPU
         shell: bash
         run: |
           set +e
-          curl -sS -m 10 -o /dev/null -w "IGN géocodage maintenant : HTTP %{http_code}\n" "https://data.geopf.fr/geocodage/search?q=marseille&limit=1"
-          npx vite preview --port 4173 --base /diagnostic-site/ & sleep 4
-          cat > t.cjs <<'JS'
-          const { chromium } = require('playwright');
-          (async () => {
-            const b = await chromium.launch(); const p = await b.newPage({ viewport:{width:390,height:844} });
-            const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
-            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
-            p.on('response', r=>{ const u=r.url(); if (/geocodage|photon|geo\.api/.test(u)) log('HTTP', r.status(), u.slice(0,110)); });
-            await p.goto('http://localhost:4173/diagnostic-site/');
-            await p.click('#search-input'); await p.keyboard.type('2 rue jean 13004 marseille', {delay:60});
-            await p.waitForSelector('.address-suggestions li[role=option]', {timeout:30000}).catch(()=>log('PAS DE SUGGESTION'));
-            log('SUGGESTIONS', (await p.$$eval('.address-suggestions li[role=option]', ls=>ls.map(l=>l.innerText.replace(/\n/g,' / ')))).join(' || '));
-            await p.keyboard.press('Enter');
-            await p.waitForSelector('#site-info:not([hidden])', {timeout:30000}).catch(()=>log('PAS DE SITE'));
-            log('SITE', await p.textContent('#site-info'));
-            await p.waitForFunction(()=>{ const c=[...document.querySelectorAll('.module-card')].find(c=>c.textContent.includes('Réglementaire')); return c && c.dataset.status!=='loading'; }, null, {timeout:120000}).catch(()=>log('Réglementaire en attente'));
-            await p.click('.modules-toolbar button[data-open=true]').catch(()=>{});
-            const reg = await p.$$eval('.module-card', cs=>cs.filter(c=>c.textContent.includes('Réglementaire')).map(c=>c.innerText.replace(/\n+/g,' ¶ ').slice(0,500)));
-            log('REGLEMENTAIRE', reg[0]);
-            // Saisie directe sans choisir de suggestion
-            await p.fill('#search-input', 'place de la comédie montpellier'); await p.keyboard.press('Escape'); await p.click('form button[type=submit]');
-            await p.waitForTimeout(8000); log('SITE 2', await p.textContent('#site-info'));
-            await b.close();
-          })();
-          JS
-          node t.cjs
+          PT='%7B%22type%22%3A%22Point%22%2C%22coordinates%22%3A%5B5.403146%2C43.303347%5D%7D'
+          p() { curl -sS -m 25 -H "Origin: https://esope023.github.io" -D /tmp/h -o /tmp/b -w "HTTP %{http_code} %{time_total}s redir=%{redirect_url}\n" "$1"; echo "  $1"; grep -i "^access-control-allow-origin\|^content-type" /tmp/h; head -c 350 /tmp/b | tr '\n' ' '; echo; echo; }
+          p "https://apicarto.ign.fr/api/gpu/zone-urba?geom=$PT"
+          p "https://apicarto.ign.fr/api/gpu/assiette-sup-s?geom=$PT"
+          p "https://apicarto.ign.fr/api/gpu/municipality?insee=13204"
+          p "https://apicarto.ign.fr/api/nature/znieff1?geom=$PT"
+          p "https://apicarto.ign.fr/api/"
+          p "https://data.geopf.fr/apicarto/gpu/zone-urba?geom=$PT"
+          p "https://data.geopf.fr/api-carto/gpu/zone-urba?geom=$PT"
+          p "https://www.geoportail-urbanisme.gouv.fr/api/feature-info/du?lon=5.403146&lat=43.303347"
+          p "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=wfs_du:zone_urba&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=2&BBOX=5.4030,43.3032,5.4033,43.3035,EPSG:4326"
+          p "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities" 
+          grep -o "<Name>wfs_\(du\|sup\)[^<]*</Name>" /tmp/b | head -20
+          p "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=wfs_sup:assiette_sup_s&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=3&BBOX=5.4030,43.3032,5.4033,43.3035,EPSG:4326"
