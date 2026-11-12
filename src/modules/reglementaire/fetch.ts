@@ -6,12 +6,14 @@ import { fetchJson } from "../../api/client";
 import {
   gpuZoneUrba,
   gpuMunicipality,
+  gpuWfsAtPoint,
   gpuSup,
   georisquesRga,
   georisquesSynthese,
   georisquesCatnat,
 } from "../../api/endpoints";
 import type { SiteContext } from "../../core/types";
+import { pointInPolygon } from "../../core/geo";
 
 function sitePoint(ctx: SiteContext) {
   return { type: "Point", coordinates: [ctx.lon, ctx.lat] };
@@ -46,7 +48,39 @@ export interface ZonageFeatureProps {
   datvalid?: string | null;
 }
 interface GpuFeatureCollection<P> {
-  features: { properties: P }[];
+  features: { properties: P; geometry?: { type: string; coordinates: unknown } }[];
+}
+
+/** Le point est-il dans un Polygon / MultiPolygon GeoJSON ([lon, lat]) ? */
+function containsPoint(geometry: { type: string; coordinates: unknown } | undefined, lat: number, lon: number): boolean {
+  if (!geometry) return false;
+  const polys =
+    geometry.type === "Polygon"
+      ? [geometry.coordinates as number[][][]]
+      : geometry.type === "MultiPolygon"
+        ? (geometry.coordinates as number[][][][])
+        : [];
+  return polys.some((poly) => {
+    const [outer, ...holes] = poly.map((ring) => ring.map(([x, y]) => ({ lat: y, lon: x })));
+    return outer && pointInPolygon({ lat, lon }, outer) && !holes.some((h) => pointInPolygon({ lat, lon }, h));
+  });
+}
+
+/** Secours WFS Géoplateforme : objets au point (polygones) ou à quelques mètres (lignes, points). */
+async function wfsAtPoint<P>(
+  ctx: SiteContext,
+  typeName: Parameters<typeof gpuWfsAtPoint>[0],
+): Promise<P[]> {
+  const surfacic = typeName.endsWith("_s") || typeName === "wfs_du:zone_urba";
+  const data = await fetchJson<GpuFeatureCollection<P>>(gpuWfsAtPoint(typeName, ctx.lat, ctx.lon), {
+    cacheKey: `gpu-wfs:${typeName}`,
+    ttlMs: 60 * 24 * 60 * 60 * 1000,
+    timeoutMs: 15_000,
+    retries: 1,
+  });
+  return (data.features ?? [])
+    .filter((f) => !surfacic || containsPoint(f.geometry, ctx.lat, ctx.lon))
+    .map((f) => f.properties);
 }
 
 /** `undefined` = service en échec (≠ `null` = aucun zonage au point). */
@@ -59,9 +93,18 @@ async function fetchZonage(ctx: SiteContext): Promise<ZonageFeatureProps | null 
       timeoutMs: 15_000,
       retries: 2,
     });
-    return data.features[0]?.properties ?? null;
+    // API Carto peut renvoyer plusieurs zones (constaté le 12/11/2026, la
+    // première n'étant pas celle du point) : on garde celle qui le contient.
+    const atPoint = data.features.find((f) => containsPoint(f.geometry, ctx.lat, ctx.lon));
+    return (atPoint ?? data.features[0])?.properties ?? null;
   } catch {
-    return undefined;
+    // API Carto en panne : même donnée via le WFS de la Géoplateforme.
+    try {
+      const props = await wfsAtPoint<ZonageFeatureProps>(ctx, "wfs_du:zone_urba");
+      return props[0] ?? null;
+    } catch {
+      return undefined;
+    }
   }
 }
 
@@ -119,18 +162,26 @@ async function fetchSupLayer(
       url,
       { cacheKey: `gpu:${layer}`, ttlMs: 60 * 24 * 60 * 60 * 1000, timeoutMs: 15_000 },
     );
-    return data.features.map((f) => {
-      const libelle = f.properties.nomsuplitt ?? f.properties.nomass ?? null;
-      return {
-        categorie: f.properties.suptype?.toUpperCase() ?? null,
-        libelle: libelle !== null ? fixMojibake(libelle) : null,
-        typeAssiette: f.properties.typeass ? fixMojibake(f.properties.typeass) : null,
-        id: f.properties.idass ?? null,
-      };
-    });
+    return data.features.map((f) => toSupItem(f.properties));
   } catch {
-    return null; // échec ≠ « aucune servitude »
+    // API Carto en panne : mêmes assiettes via le WFS de la Géoplateforme.
+    try {
+      const wfsName = `wfs_sup:${layer.replace(/-/g, "_")}` as Parameters<typeof gpuWfsAtPoint>[0];
+      return (await wfsAtPoint<GpuSupProps>(ctx, wfsName)).map(toSupItem);
+    } catch {
+      return null; // échec ≠ « aucune servitude »
+    }
   }
+}
+
+function toSupItem(p: GpuSupProps): SupItem {
+  const libelle = p.nomsuplitt ?? p.nomass ?? null;
+  return {
+    categorie: p.suptype?.toUpperCase() ?? null,
+    libelle: libelle !== null ? fixMojibake(libelle) : null,
+    typeAssiette: p.typeass ? fixMojibake(p.typeass) : null,
+    id: p.idass ?? null,
+  };
 }
 
 /** null si aucune des trois couches n'a répondu. Doublons d'assiette retirés. */

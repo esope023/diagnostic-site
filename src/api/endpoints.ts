@@ -38,6 +38,9 @@ export const BAN_SEARCH = "https://data.geopf.fr/geocodage/search";
 /** Photon (komoot) — géocodeur OpenStreetMap, CORS ouvert, sans clé. Secours
  * quand la BAN ne répond pas (vérifié le 11/11/2026 : 0,6 s, CORS « * »). */
 export const PHOTON_SEARCH = "https://photon.komoot.io/api/";
+export const PHOTON_REVERSE = "https://photon.komoot.io/reverse";
+/** Géocodage inverse BAN (adresse la plus proche d'un point). */
+export const BAN_REVERSE = "https://data.geopf.fr/geocodage/reverse";
 
 /** API Découpage administratif (DINUM) — code INSEE au point (CORS ouvert). */
 export const GEO_API_COMMUNES = "https://geo.api.gouv.fr/communes";
@@ -150,6 +153,27 @@ export const APICARTO_GPU_BASE = "https://apicarto.ign.fr/api/gpu";
 export function gpuZoneUrba(geom: object): string {
   return `${APICARTO_GPU_BASE}/zone-urba?geom=${encodeURIComponent(JSON.stringify(geom))}`;
 }
+/**
+ * Secours : mêmes données GPU (zonage, servitudes) servies par le WFS de la
+ * Géoplateforme, sur une autre infrastructure qu'API Carto (vérifié le
+ * 12/11/2026 : couches wfs_du:zone_urba et wfs_sup:assiette_sup_*, CORS « * »).
+ * BBOX minuscule autour du point, ordre lon,lat avec « EPSG:4326 ».
+ */
+export function gpuWfsAtPoint(
+  typeName: "wfs_du:zone_urba" | "wfs_sup:assiette_sup_s" | "wfs_sup:assiette_sup_l" | "wfs_sup:assiette_sup_p",
+  lat: number,
+  lon: number,
+  halfSizeM = 2,
+): string {
+  const dLat = halfSizeM / 110_540;
+  const dLon = halfSizeM / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return (
+    "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature" +
+    `&TYPENAMES=${typeName}&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=50` +
+    `&BBOX=${(lon - dLon).toFixed(7)},${(lat - dLat).toFixed(7)},${(lon + dLon).toFixed(7)},${(lat + dLat).toFixed(7)},EPSG:4326`
+  );
+}
+
 export function gpuMunicipality(insee: string): string {
   return `${APICARTO_GPU_BASE}/municipality?insee=${insee}`;
 }

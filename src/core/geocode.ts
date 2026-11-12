@@ -7,7 +7,7 @@
 // administratif de l'État (geo.api.gouv.fr).
 
 import { fetchJson } from "../api/client";
-import { BAN_SEARCH, PHOTON_SEARCH, GEO_API_COMMUNES } from "../api/endpoints";
+import { BAN_SEARCH, BAN_REVERSE, PHOTON_SEARCH, PHOTON_REVERSE, GEO_API_COMMUNES } from "../api/endpoints";
 
 interface BanFeature {
   geometry: { coordinates: [number, number] }; // [lon, lat]
@@ -187,6 +187,48 @@ export async function geocode(query: string): Promise<GeocodeResult | null> {
   }
   const [first] = await photonSearch(q, 1);
   return first ? ensureInsee(first) : null;
+}
+
+/**
+ * Adresse la plus proche d'un point (BAN, puis Photon). Sert à nommer un point
+ * placé à la main ; null si aucun service ne répond — ce n'est pas bloquant.
+ */
+export async function reverseGeocode(lat: number, lon: number): Promise<GeocodeResult | null> {
+  const ll = `lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}`;
+  if (!banIsDown()) {
+    try {
+      const data = await getJson<BanResponse>(`${BAN_REVERSE}?${ll}&limit=1`, BAN_TIMEOUT_MS);
+      const f = data.features?.[0];
+      if (f) return fromBan(f);
+    } catch {
+      markBanDown();
+    }
+  }
+  try {
+    const data = await getJson<{ features?: PhotonFeature[] }>(`${PHOTON_REVERSE}?${ll}&lang=fr&limit=1`, 8000);
+    const f = data.features?.[0];
+    return f ? fromPhoton(f) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Point placé à la main : coordonnées exactes, nommé par l'adresse la plus proche. */
+export async function manualPoint(lat: number, lon: number): Promise<GeocodeResult> {
+  const near = await reverseGeocode(lat, lon);
+  const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  const base: GeocodeResult = {
+    lat,
+    lon,
+    label: near ? `Point placé près de ${near.label} (${coords})` : `Point placé (${coords})`,
+    insee: near?.insee,
+    commune: near?.commune,
+    postcode: near?.postcode,
+    context: near?.context,
+    kind: "point",
+    source: near?.source,
+  };
+  return ensureInsee(base);
 }
 
 /** Nombre minimal de caractères avant de proposer des suggestions. */

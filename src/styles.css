@@ -263,3 +263,21 @@ body {
   .m3d-layers { top: 52px; max-width: 200px; }
   .m3d-sun { bottom: 24px; padding: 6px 8px; }
 }
+
+/* --- Barre « Analyser ce point » (repère déplacé) -------------------------- */
+.move-bar {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1000;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 24px); padding: 8px 10px; border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18); font-size: 0.85rem;
+}
+.move-bar[hidden] { display: none; }
+.move-bar-text { color: var(--muted); }
+.move-bar button {
+  font: inherit; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--accent);
+}
+.move-bar-go { background: var(--accent); color: #fff; }
+.move-bar-go:disabled { opacity: 0.7; cursor: progress; }
+.move-bar-cancel { background: var(--panel); color: var(--accent); }
