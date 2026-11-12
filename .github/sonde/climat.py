@@ -5,9 +5,11 @@ WIN = {"ref": ("1991", "2020"), "2030": ("2021", "2035"), "2050": ("2036", "2050
 def get(url):
     for i in range(6):
         try:
-            with urllib.request.urlopen(url, timeout=120) as r: return json.load(r)
+            with urllib.request.urlopen(url, timeout=300) as r: return json.load(r)
         except urllib.error.HTTPError as e:
             print("HTTP", e.code, url[:90], flush=True); time.sleep(60 if e.code == 429 else 10)
+        except Exception as e:
+            print("ERREUR", type(e).__name__, url[:90], flush=True); time.sleep(20)
     raise SystemExit("échec " + url)
 def indic(d, y0, y1):
     T, tx, tn, tm = d["time"], d["temperature_2m_max"], d["temperature_2m_min"], d["temperature_2m_mean"]
