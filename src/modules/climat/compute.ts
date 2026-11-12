@@ -24,6 +24,10 @@ export interface ClimatResult {
   /** Nombre moyen d'épisodes de vague de chaleur (≥ 3 j consécutifs Tmax ≥ 30). */
   vaguesChaleur: number;
   tMoyenneAnnuelle: number;
+  /** Nuits tropicales par mois (moyenne annuelle, 12 valeurs, index 0 = janvier). */
+  nuitsParMois: number[];
+  /** Point du site, pour charger après coup la série observée 1950-2025. */
+  site: { lat: number; lon: number; timezone: string };
   /** Horizons de projection (2030/2050), calculés séparément et attachés ici
    * par index.ts pour rester dans le contrat DiagnosticModule (un seul Result). */
   projections: ProjectionHorizon[];
@@ -50,6 +54,48 @@ export interface DailyTemperatureBlock {
 }
 
 const monthOf = (isoDate: string): number => Number(isoDate.slice(5, 7)) - 1;
+
+export interface AnneeObservee {
+  annee: number;
+  t: number;
+}
+
+/**
+ * Nombre moyen par an et par mois de nuits tropicales (Tmin ≥ 20 °C).
+ * Rapporté au nombre d'années de données valides de chaque mois.
+ */
+export function nuitsTropicalesParMois(daily: DailyTemperatureBlock): number[] {
+  const count = new Array(12).fill(0);
+  const valid = new Array(12).fill(0);
+  daily.time.forEach((t, i) => {
+    const tmin = daily.temperature_2m_min[i];
+    if (typeof tmin !== "number" || !Number.isFinite(tmin)) return;
+    const m = monthOf(t);
+    valid[m]++;
+    if (tmin >= 20) count[m]++;
+  });
+  // Jours valides d'un mois / longueur moyenne du mois = années équivalentes.
+  const LONGUEUR = [31, 28.25, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return count.map((c, m) => (valid[m] > 0 ? c / (valid[m] / LONGUEUR[m]) : 0));
+}
+
+/** Moyennes annuelles (années quasi complètes seulement, ≥ 360 jours valides). */
+export function moyennesAnnuelles(time: string[], tmean: number[]): AnneeObservee[] {
+  const acc = new Map<number, { s: number; n: number }>();
+  time.forEach((t, i) => {
+    const v = tmean[i];
+    if (typeof v !== "number" || !Number.isFinite(v)) return;
+    const y = Number(t.slice(0, 4));
+    const a = acc.get(y) ?? { s: 0, n: 0 };
+    a.s += v;
+    a.n++;
+    acc.set(y, a);
+  });
+  return [...acc]
+    .filter(([, a]) => a.n >= 360)
+    .map(([annee, a]) => ({ annee, t: a.s / a.n }))
+    .sort((a, b) => a.annee - b.annee);
+}
 
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -131,7 +177,7 @@ export function computeTemperatureIndicators(daily: DailyTemperatureBlock): Temp
 
 const yearOf = (isoDate: string): number => Number(isoDate.slice(0, 4));
 
-export function computeClimat(raw: ClimatRaw): Omit<ClimatResult, "projections"> {
+export function computeClimat(raw: ClimatRaw): Omit<ClimatResult, "projections" | "site"> {
   const d = raw.daily;
   const n = d.time.length;
 
@@ -171,7 +217,7 @@ export function computeClimat(raw: ClimatRaw): Omit<ClimatResult, "projections">
   // bas), pour garantir une méthode strictement identique.
   const indicators = computeTemperatureIndicators(d);
 
-  return { monthly, ...indicators };
+  return { monthly, ...indicators, nuitsParMois: nuitsTropicalesParMois(d).map(round1) };
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +244,8 @@ export interface ProjectionHorizon {
     djuChauffage: Fourchette;
     djuClim: Fourchette;
   };
+  /** Nuits tropicales par mois (méthode des écarts, moyenne des modèles). */
+  nuitsParMois: number[];
   /** Nombre de modèles utilisés (ceux dont la référence 1991-2020 a répondu). */
   nbModeles: number;
   /** Écart absolu vs référence 1991-2020. */
@@ -240,10 +288,19 @@ export function computeProjectionHorizon(
   id: string,
   label: string,
   perModel: ModelSeries[],
-  baseline: TemperatureIndicators,
+  baseline: TemperatureIndicators & { nuitsParMois: number[] },
 ): ProjectionHorizon {
-  const projected: TemperatureIndicators[] = perModel
-    .filter((m): m is ModelSeries & { reference: DailyTemperatureBlock } => m.reference !== null)
+  const complets = perModel.filter(
+    (m): m is ModelSeries & { reference: DailyTemperatureBlock } => m.reference !== null,
+  );
+  // Même méthode des écarts, mois par mois.
+  const parMoisModeles = complets.map((m) => {
+    const fut = nuitsTropicalesParMois(m.future);
+    const ref = nuitsTropicalesParMois(m.reference);
+    return baseline.nuitsParMois.map((b, k) => Math.max(0, b + fut[k] - ref[k]));
+  });
+  const nuitsParMois = baseline.nuitsParMois.map((_, k) => round1(mean(parMoisModeles.map((v) => v[k]))));
+  const projected: TemperatureIndicators[] = complets
     .map((m) => {
       const fut = computeTemperatureIndicators(m.future);
       const ref = computeTemperatureIndicators(m.reference);
@@ -285,6 +342,7 @@ export function computeProjectionHorizon(
       djuChauffage: range("djuChauffage", 0),
       djuClim: range("djuClim", 0),
     },
+    nuitsParMois,
     nbModeles: projected.length,
     deltaTemp: round1(indicators.tMoyenneAnnuelle - baseline.tMoyenneAnnuelle),
     deltaNuitsTropicales: round1(indicators.nuitsTropicales - baseline.nuitsTropicales),
