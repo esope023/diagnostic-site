@@ -98,7 +98,7 @@ export const COUCHES: CoucheDef[] = [
     source: "OpenStreetMap",
     active: true,
     opacite: 0.9,
-    note: "Positions recensées ; en 3D, volume générique (houppier de 5 m, 7 m de haut) : la taille réelle n'est pas connue.",
+    note: "En 3D, chaque arbre prend la hauteur et le houppier renseignés dans OpenStreetMap ; à défaut, une taille générique (6 à 14 m), variée pour la lisibilité.",
   },
   { id: "vegetation", famille: "Végétation", titre: "Zones de végétation", source: "IGN BD TOPO®", active: false, opacite: 0.5 },
   {
