@@ -35,9 +35,11 @@ jobs:
                 await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
                 await p.click('.map-atelier'); await p.waitForFunction(()=>/périmètre/.test(document.querySelector('.at-site')?.textContent||''), null, {timeout:60000}); await p.waitForTimeout(3000);
                 await p.click('.mp-bouton'); await p.waitForTimeout(7000);
-                log('ETAT', JSON.stringify(await p.evaluate(() => { const m = document.querySelector('#vue-atelier').__carte; const L = (id) => m.getLayer(id) ? { vis: m.getLayoutProperty(id,'visibility'), idx: m.getStyle().layers.findIndex(l=>l.id===id) } : null;
-                  const src = m.getSource('cadre'); const d = src && src._data;
-                  return { zoom: m.getZoom().toFixed(2), centre: m.getCenter(), padding: m.getPadding(), nCouches: m.getStyle().layers.length, masque: L('cadre-masque'), ligne: L('cadre-ligne'), nFeat: d && d.features ? d.features.length : (typeof d), rendus: m.queryRenderedFeatures({ layers: ['cadre-masque','cadre-ligne'].filter(id=>m.getLayer(id)) }).length, toile: [m.getCanvas().width, m.getCanvas().height] }; })));
+                log('ETAT', JSON.stringify(await p.evaluate(() => { const m = document.querySelector('#vue-atelier').__carte;
+                  const f = m.getSource('cadre')._data.features.find(x=>x.properties.role==='cadre').geometry.coordinates.map(c=>m.project(c));
+                  const xs=f.map(q=>Math.round(q.x)), ys=f.map(q=>Math.round(q.y)); const c = m.getContainer();
+                  const pan = document.querySelector('.mp-panneau').getBoundingClientRect(), car = c.getBoundingClientRect();
+                  return { cadreX:[Math.min(...xs),Math.max(...xs)], cadreY:[Math.min(...ys),Math.max(...ys)], carte:[Math.round(car.width),Math.round(car.height)], panneau:{x:Math.round(pan.left-car.left), y:Math.round(pan.top-car.top)}, padding: m.getPadding() }; })));
                 await p.screenshot({ path:`shots/ui-${name}.jpg`, quality:60, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
               } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
               await c.close();
