@@ -24,7 +24,7 @@ jobs:
           const pw = require('playwright');
           (async () => {
             const b = await pw.chromium.launch();
-            for (const [name, opts] of [['bureau', { viewport:{width:1280,height:800} }], ['mobile', { ...pw.devices['iPhone 14'] }]]) {
+            for (const [name, opts] of [['mobile', { ...pw.devices['iPhone 14'] }]]) {
               const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
               const c = await b.newContext(opts); const p = await c.newPage();
               try {
@@ -33,8 +33,8 @@ jobs:
                 await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000});
                 await p.keyboard.press('Enter');
                 await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
-                await p.click('.map-atelier'); await p.waitForFunction(()=>/périmètre/.test(document.querySelector('.at-site')?.textContent||''), null, {timeout:60000}); await p.waitForTimeout(3000);
-                await p.click('.mp-bouton'); await p.waitForTimeout(7000);
+                log('etape atelier'); await p.click('.map-atelier', { timeout: 20000 }); log('atelier ouvert'); await p.waitForFunction(()=>/périmètre/.test(document.querySelector('.at-site')?.textContent||''), null, {timeout:60000}); await p.waitForTimeout(3000);
+                log('etape mp', JSON.stringify(await p.evaluate(()=>{ const b=document.querySelector('.mp-bouton').getBoundingClientRect(); const e=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2); return {b:[Math.round(b.x),Math.round(b.y),Math.round(b.width)], dessus: e && (e.className||e.tagName)}; }))); await p.click('.mp-bouton', { timeout: 20000 }); await p.waitForTimeout(7000);
                 log('ETAT', JSON.stringify(await p.evaluate(() => { const m = document.querySelector('#vue-atelier').__carte;
                   const f = m.getSource('cadre').serialize().data.features.find(x=>x.properties.role==='cadre').geometry.coordinates.map(c=>m.project(c));
                   const xs=f.map(q=>Math.round(q.x)), ys=f.map(q=>Math.round(q.y)); const c = m.getContainer();
