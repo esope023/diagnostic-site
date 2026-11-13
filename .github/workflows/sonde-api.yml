@@ -24,39 +24,25 @@ jobs:
           const pw = require('playwright');
           (async () => {
             const b = await pw.chromium.launch();
-            const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',...a);
-            const c = await b.newContext({ viewport:{width:1280,height:800}, acceptDownloads:true }); const p = await c.newPage();
-            p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
-            p.on('console', m=>{ if (m.type()==='error' && !/Failed to load resource|AJAXError|decoded/.test(m.text())) log('CONSOLE', m.text().slice(0,160)); });
-            try {
-              await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 });
-              await p.fill('#search-input', '2 rue jean 13004 marseille');
-              await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000});
-              await p.keyboard.press('Enter');
-              await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
-              await p.click('.map-atelier'); await p.waitForTimeout(6000);
-              await p.click('[data-couche="zonage"] .switch');
-              await p.click('.mp-bouton'); await p.waitForTimeout(9000);
-              log('titre', await p.inputValue('.mp-titre'));
-              await p.screenshot({ path:'shots/ui.jpg', quality:60, timeout:60000 }).catch(e=>log('capture ui', e.message.split('\n')[0]));
-              for (const [fmt, orient] of [['A4','portrait'], ['A1','paysage']]) {
-                await p.click(`[data-format="${fmt}"]`); await p.click(`[data-orient="${orient}"]`); await p.waitForTimeout(400);
-                log('info', fmt, await p.innerText('.mp-info'));
-                const dl = p.waitForEvent('download', { timeout: 600000 });
-                await p.click('.mp-pdf');
-                const d = await dl; await d.saveAs(`dl/${fmt}.pdf`); log('PDF', fmt, await p.innerText('.mp-etat'));
-              }
-            } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
+            for (const [name, opts] of [['bureau', { viewport:{width:1280,height:800} }], ['mobile', { ...pw.devices['iPhone 14'] }]]) {
+              const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
+              const c = await b.newContext(opts); const p = await c.newPage();
+              try {
+                await p.goto('http://localhost:4173/diagnostic-site/', { waitUntil:'domcontentloaded', timeout:60000 });
+                await p.fill('#search-input', '2 rue jean 13004 marseille');
+                await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000});
+                await p.keyboard.press('Enter');
+                await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
+                await p.click('.map-atelier'); await p.waitForTimeout(7000);
+                await p.click('.mp-bouton'); await p.waitForTimeout(7000);
+                await p.screenshot({ path:`shots/ui-${name}.jpg`, quality:60, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
+              } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
+              await c.close();
+            }
             await b.close();
           })();
           JS
           node t.cjs
-          ls -la dl
-          for f in dl/*.pdf; do echo "== $f"; pdfinfo "$f" | grep -E "Pages|Page size|File size"; done
-          pdftoppm -r 60 -jpeg -jpegopt quality=70 dl/A4.pdf shots/pdf-a4
-          pdftoppm -r 25 -jpeg -jpegopt quality=70 dl/A1.pdf shots/pdf-a1
-          f=$(ls dl/*.png | head -1); [ -n "$f" ] && python3 -c "
-          from PIL import Image; im=Image.open('$f'); print('PNG', im.size); im.thumbnail((1400,1400)); im.convert('RGB').save('shots/png.jpg', quality=70)"
           python3 -c "
           import base64,glob,time
           for f in sorted(glob.glob('shots/*.jpg')):
