@@ -43,22 +43,27 @@ jobs:
             await p.click('.map-atelier');
             await p.waitForFunction(()=>/périmètre/.test(document.querySelector('.at-site')?.textContent||''), null, {timeout:60000});
             for (const id of ['cadastre']) await p.click(`[data-couche="${id}"] .switch`);
+            await p.click('[data-couche="ombres"] .switch');
             await p.click('.at-replier');
-            await p.waitForTimeout(2500);
-            await p.evaluate(() => { const m = document.querySelector('#vue-atelier').__carte; const c = m.getCenter(); m.jumpTo({ center: [c.lng, c.lat - 0.0001], zoom: 18.3, pitch: 0, bearing: 0 }); });
-            await p.waitForTimeout(6000);
-            log('arbres', await p.innerText('[data-couche="arbres"] .at-etat').catch(()=>''));
-            await p.locator('.at-canvas canvas').screenshot({ path:'shots/plan.jpg', quality:70, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
-            await p.click('.mp-bouton'); await p.waitForTimeout(1500);
-            await p.click('[data-format="A4"]'); await p.fill('.mp-echelle', '500'); await p.waitForTimeout(400);
-            const dl = p.waitForEvent('download', { timeout: 300000 });
-            await p.click('.mp-pdf');
-            const d = await dl; await d.saveAs('plan.pdf'); log('PDF', await p.innerText('.mp-etat'));
+            await p.click('.at-mode button[data-mode="3d"]');
+            await p.waitForTimeout(4000);
+            const vue = async (md, heure, nom, pitch) => {
+              await p.click(`.m3d-presets button[data-md="${md}"]`);
+              await p.evaluate((h) => { const i = document.querySelector('.m3d-hour'); i.value = String(h); i.dispatchEvent(new Event('input')); }, heure);
+              await p.evaluate((pt) => { const m = document.querySelector('#vue-atelier').__carte; const c = m.getCenter(); m.jumpTo({ center: [c.lng, c.lat], zoom: pt ? 18.2 : 18.3, pitch: pt, bearing: pt ? -25 : 0 }); }, pitch);
+              await p.waitForTimeout(5000);
+              log(nom, await p.innerText('.m3d-sun-info'));
+              await p.locator('.at-canvas canvas').screenshot({ path:`shots/${nom}.jpg`, quality:70, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
+            };
+            await p.evaluate(() => { const m = document.querySelector('#vue-atelier').__carte; const c = m.getCenter(); m.jumpTo({ center: [c.lng, c.lat - 0.0001] }); });
+            await vue('12-21', 9.5, 'hiver-9h30-3d', 60);
+            await vue('06-21', 14, 'ete-14h-3d', 60);
+            await vue('06-21', 19.5, 'ete-19h30-3d', 60);
+            await vue('12-21', 11, 'hiver-11h-plan', 0);
             await b.close();
           })();
           JS
           node t.cjs
-          pdftoppm -r 70 -jpeg -jpegopt quality=70 plan.pdf shots/pdf
           python3 -c "
           import base64,glob,time
           for f in sorted(glob.glob('shots/*.jpg')):
