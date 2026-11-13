@@ -282,7 +282,7 @@ export function createAtelier(root: HTMLElement): Atelier {
           type: "fill-extrusion",
           source: "bati",
           layout: { visibility: "none" },
-          paint: { "fill-extrusion-color": NEUTRE, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": false },
+          paint: { "fill-extrusion-color": NEUTRE, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": false },
         },
         {
           id: "arbres",
@@ -352,7 +352,7 @@ export function createAtelier(root: HTMLElement): Atelier {
       if (lid === "arbres-3d") visible = e.actif && rendu === "volume";
       map.setLayoutProperty(lid, "visibility", visible ? "visible" : "none");
       const prop = PROP[layer.type];
-      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" ? Math.min(0.95, e.opacite) : e.opacite);
+      if (prop) map.setPaintProperty(lid, prop, e.opacite);
       if (lid === "arbres-3d") coucheArbres.setOpacite(e.opacite);
       if (lid === "arbres") map.setPaintProperty(lid, "circle-stroke-opacity", e.opacite);
     }

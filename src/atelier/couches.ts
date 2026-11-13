@@ -167,13 +167,15 @@ export const FAMILLES: Famille[] = ["Fond", "Occupation du sol", "Parcelles", "B
 
 /** Classes de hauteur (m) : rampe séquentielle claire → foncée. */
 export const HAUTEURS = [
-  { max: 6, color: "#fbe3b5", label: "< 6" },
-  { max: 12, color: "#f6bd6b", label: "6–12" },
-  { max: 20, color: "#ea8a3c", label: "12–20" },
-  { max: 35, color: "#c9552a", label: "20–35" },
-  { max: Infinity, color: "#8f2d1c", label: "> 35" },
+  // Rampe douce (beige → terracotta), choisie à l'œil dans le Chrome de
+  // Cédric le 13/11 : lisible en 3D sans couleurs criardes.
+  { max: 6, color: "#f2ebe0", label: "< 6" },
+  { max: 12, color: "#e7d8c1", label: "6–12" },
+  { max: 20, color: "#d8bf9f", label: "12–20" },
+  { max: 35, color: "#c19c7c", label: "20–35" },
+  { max: Infinity, color: "#9c7562", label: "> 35" },
 ];
-export const INCONNU = "#b8b8b8";
+export const INCONNU = "#c9c6c0";
 
 /** Usages BD TOPO (attribut usage_1) : palette catégorielle de référence,
  * dans son ordre fixe (contrôlée pour la vision des couleurs) ; annexes et
