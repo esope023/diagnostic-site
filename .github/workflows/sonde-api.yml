@@ -30,6 +30,14 @@ jobs:
               const b = await nav.launch();
               const name = 'iphone-' + nomNav; const t0=Date.now(); const log=(...a)=>console.log(((Date.now()-t0)/1000).toFixed(1)+'s',name,...a);
               const c = await b.newContext({ ...pw.devices['iPhone 14'] }); const p = await c.newPage();
+              // Arbres fictifs autour du site (le serveur Overpass ne répond pas aux machines de test).
+              await p.route(/overpass|maps\.mail\.ru/, (route) => {
+                const u = decodeURIComponent(route.request().url());
+                if (!/natural.*tree/.test(u)) return route.continue();
+                const lat0 = 43.3125, lon0 = 5.4005, els = [];
+                for (let i = 0; i < 40; i++) els.push({ type:'node', id:i, lat: lat0 + 0.00012*Math.floor(i/8), lon: lon0 + 0.00011*(i%8), tags: i%9===0 ? { leaf_type:'needleleaved' } : (i%7===0 ? { height:'16', diameter_crown:'9' } : {}) });
+                route.fulfill({ status:200, contentType:'application/json', headers:{'access-control-allow-origin':'*'}, body: JSON.stringify({ elements: els }) });
+              });
               p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
               p.on('console', m=>{ if (m.type()==='error' && !/Failed to load resource/.test(m.text())) log('CONSOLE', m.text().slice(0,160)); });
               try {
@@ -45,7 +53,7 @@ jobs:
                 await p.click('.at-mode button[data-mode="3d"]'); await p.waitForTimeout(2000);
                 await p.waitForFunction(()=>!/Chargement/.test(document.querySelector('[data-couche="arbres"] .at-etat')?.textContent||''), null, {timeout:90000}).catch(()=>log('arbres encore en chargement'));
                 log('arbres', await p.innerText('[data-couche="arbres"] .at-etat').catch(()=>''));
-                await p.waitForTimeout(4000);
+                await p.evaluate(()=>{}); await p.waitForTimeout(1500);
                 log('ATELIER 3D', JSON.stringify(await p.evaluate(debord)));
                 if (nomNav === 'chromium') await p.locator('.at-canvas canvas').screenshot({ path:`shots/${name}-3d.jpg`, quality:65, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
               } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
