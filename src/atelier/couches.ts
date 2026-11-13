@@ -187,4 +187,4 @@ export const USAGES: { valeur: string; color: string }[] = [
   { valeur: "Sportif", color: "#008300" },
 ];
 export const USAGE_AUTRE = "#b8b8bd";
-export const NEUTRE = "#d9d6cf";
+export const NEUTRE = "#e6e2da";

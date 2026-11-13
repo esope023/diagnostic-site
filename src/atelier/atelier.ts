@@ -282,7 +282,7 @@ export function createAtelier(root: HTMLElement): Atelier {
           type: "fill-extrusion",
           source: "bati",
           layout: { visibility: "none" },
-          paint: { "fill-extrusion-color": NEUTRE, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": true },
+          paint: { "fill-extrusion-color": NEUTRE, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": false },
         },
         {
           id: "arbres",
@@ -400,6 +400,7 @@ export function createAtelier(root: HTMLElement): Atelier {
     return HAUTEURS.map((h) => pastille(h.color, `${h.label} m`)).join("") + pastille(INCONNU, `inconnue (${DEFAULT_HEIGHT_M} m supposés)`);
   }
   function appliquerColoration(): void {
+    if (etat.get("ombres")!.actif && dernierSoleil) eclairer(dernierSoleil);
     map.setPaintProperty("bati-2d", "fill-color", couleurBati());
     map.setPaintProperty("bati-3d", "fill-extrusion-color", couleurBati());
     q<HTMLElement>("[data-legende-bati]").innerHTML = legendeBati();
@@ -510,26 +511,38 @@ export function createAtelier(root: HTMLElement): Atelier {
    * éclairées suivent l'heure et la saison, lumière chaude et rasante au lever,
    * au coucher et en hiver, sombre la nuit. null : éclairage neutre par défaut.
    */
+  /**
+   * Lumière de la carte calée sur le soleil (ombres actives) : la direction
+   * suit toujours le soleil (faces éclairées / à l'ombre). La teinte chaude du
+   * soleil bas ne s'applique qu'en coloration « Neutre » : avec Hauteur ou
+   * Usage, la lumière reste blanche pour ne pas fausser les couleurs de la
+   * légende. Réglages choisis à l'œil dans le Chrome de Cédric le 13/11.
+   */
+  let dernierSoleil: { azimuthDeg: number; elevationDeg: number } | null = null;
   function eclairer(sun: { azimuthDeg: number; elevationDeg: number } | null): void {
+    dernierSoleil = sun;
     if (!sun) {
       map.setLight({ anchor: "viewport", position: [1.15, 210, 30], color: "#ffffff", intensity: 0.5 });
       coucheArbres.setSoleil(null);
       return;
     }
+    const neutre = coloration === "neutre";
     const el = sun.elevationDeg;
     if (el <= 0.5) {
-      map.setLight({ anchor: "map", position: [1.5, sun.azimuthDeg, 80], color: "#7d86ad", intensity: 0.15 });
-      coucheArbres.setSoleil({ azimut: sun.azimuthDeg, hauteur: 0, couleur: 0x7d86ad, intensite: 0 });
+      map.setLight({ anchor: "map", position: [1.5, sun.azimuthDeg, 80], color: neutre ? "#8a93b8" : "#ffffff", intensity: neutre ? 0.45 : 0.3 });
+      coucheArbres.setSoleil({ azimut: sun.azimuthDeg, hauteur: 0, couleur: 0x8a93b8, intensite: 0 });
       return;
     }
     const t = Math.min(1, el / 45); // 0 : soleil rasant, 1 : soleil haut
-    const chaud = { r: 255, g: Math.round(176 + 70 * t), b: Math.round(110 + 135 * t) };
-    const hex = (chaud.r << 16) | (chaud.g << 8) | chaud.b;
+    // Teinte douce : orangé clair au soleil rasant, presque blanc au soleil haut.
+    const g = Math.round(214 + 30 * t);
+    const b = Math.round(170 + 68 * t);
+    const hex = (255 << 16) | (g << 8) | b;
     map.setLight({
       anchor: "map",
       position: [1.5, sun.azimuthDeg, Math.max(5, 90 - el)],
-      color: `#${hex.toString(16).padStart(6, "0")}`,
-      intensity: 0.3 + 0.35 * t,
+      color: neutre ? `#${hex.toString(16).padStart(6, "0")}` : "#ffffff",
+      intensity: neutre ? 0.72 + 0.13 * t : 0.6,
     });
     coucheArbres.setSoleil({ azimut: sun.azimuthDeg, hauteur: el, couleur: hex, intensite: t });
   }
