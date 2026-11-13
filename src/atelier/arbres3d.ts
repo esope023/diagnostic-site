@@ -106,16 +106,20 @@ export function creerCoucheArbres3D(id: string): CoucheArbres3D {
         const r1 = alea(a.lat, a.lon, 1);
         const r2 = alea(a.lat, a.lon, 2);
         const r3 = alea(a.lat, a.lon, 3);
-        const h = Math.max(3, Math.min(32, a.hauteur ?? 6 + r1 * 8));
-        const rayon = Math.max(1.2, Math.min(11, (a.couronne ?? 3.6 + r2 * 3.4) / 2));
-        const fut = a.resineux ? h * 0.3 : h * 0.55;
+        // Proportions d'un arbre urbain adulte (retours du 13/11) : fût court,
+        // houppier large qui occupe l'essentiel de la hauteur.
+        const h = Math.max(4, Math.min(32, a.hauteur ?? 8 + r1 * 8));
+        const rayon = Math.max(1.5, Math.min(11, (a.couronne ?? 6 + r2 * 5) / 2));
+        const fut = a.resineux ? h * 0.15 : h * 0.28;
 
-        m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(1 + rayon * 0.06, fut + rayon * 0.4, 1 + rayon * 0.06));
+        m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(1.2 + rayon * 0.08, fut + rayon * 0.5, 1.2 + rayon * 0.08));
         troncs.setMatrixAt(i, m4);
 
         const forme = a.resineux ? parForme[2] : parForme[r3 < 0.55 ? 0 : 1];
-        const sy = a.resineux ? (h - fut) / 2.2 : Math.min(rayon * 0.85, (h - fut) / 2 + 0.5);
-        const cy = a.resineux ? fut + 1.1 * sy : fut + sy * 0.9;
+        // Le houppier remplit l'arbre du haut du fût au sommet, en restant
+        // à peu près rond (ni galette, ni fuseau).
+        const sy = a.resineux ? (h - fut) / 2.2 : Math.max(rayon * 0.75, Math.min(rayon * 1.15, (h - fut) / 2));
+        const cy = a.resineux ? fut + 1.1 * sy : Math.max(fut + sy * 0.8, h - sy);
         q.setFromAxisAngle(axeY, r1 * Math.PI * 2);
         forme.items.push(new THREE.Matrix4().compose(new THREE.Vector3(x, cy, z), q.clone(), new THREE.Vector3(rayon, sy, rayon)));
         forme.couleurs.push(new THREE.Color(VERTS[Math.floor(r2 * VERTS.length)]));

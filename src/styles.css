@@ -729,3 +729,13 @@ body[data-vue="atelier"] { overflow: hidden; }
   .mp-panneau { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 62%; }
   .mp-champ input[type="text"], .mp-champ input[type="number"] { font-size: 16px; }
 }
+
+/* --- Atelier sans WebGL --------------------------------------------------- */
+.at-sans-webgl { grid-column: 1 / -1; display: grid; place-items: center; padding: 24px; }
+.at-sans-webgl > div {
+  max-width: 560px; padding: 22px 24px; border-radius: var(--radius-l);
+  background: var(--panel); box-shadow: 0 0 0 1px var(--border), var(--shadow-pop); font-size: 14px; line-height: 1.55;
+}
+.at-sans-webgl h2 { margin: 0 0 8px; font-size: 17px; }
+.at-sans-webgl ol { padding-left: 20px; }
+.at-sans-webgl code { font-size: 12px; background: var(--fill); padding: 1px 5px; border-radius: 4px; }
