@@ -87,26 +87,63 @@ function emprise(r: Reglages, centre: maplibregl.LngLat) {
   return { cx, cy, larg, haut, solW: (g.carteW * r.echelle) / 1000, solH: (g.carteH * r.echelle) / 1000 };
 }
 
+/** Aperçu de la planche sur la carte : la feuille entière à l'échelle (vraies
+ * proportions A4, A3…), la zone carte dedans et le bandeau du cartouche. */
 function polygoneCadre(r: Reglages, centre: maplibregl.LngLat): GeoJSON.FeatureCollection {
+  const g = gabarit(r);
   const e = emprise(r, centre);
-  const coin = (dx: number, dy: number) => merc2ll(e.cx + (dx * e.larg) / 2, e.cy + (dy * e.haut) / 2);
-  const cadre = [coin(-1, -1), coin(1, -1), coin(1, 1), coin(-1, 1), coin(-1, -1)];
-  // Voile hors cadre : quatre bandes autour (plus sûr qu'un polygone troué).
-  const [ouest, sud] = coin(-1, -1);
-  const [est, nord] = coin(1, 1);
+  const s = e.larg / g.carteW; // mètres Mercator par mm de papier
+  // Zone carte (centrée sur le centre de la vue) puis feuille autour.
+  const cO = e.cx - e.larg / 2, cE = e.cx + e.larg / 2, cS = e.cy - e.haut / 2, cN = e.cy + e.haut / 2;
+  const pO = cO - g.marge * s, pE = cE + g.marge * s, pN = cN + g.marge * s, pS = pN - g.h * s;
+  const bN = cS - (g.marge / 2) * s, bS = bN - g.bandeau * s;
+  const ll = (x: number, y: number) => merc2ll(x, y);
+  const anneau = (x1: number, y1: number, x2: number, y2: number) => [ll(x1, y1), ll(x2, y1), ll(x2, y2), ll(x1, y2), ll(x1, y1)];
+  const [ouest, sud] = ll(pO, pS);
+  const [est, nord] = ll(pE, pN);
+  // Voile hors feuille : quatre bandes autour (plus sûr qu'un polygone troué).
   const W = ouest - 0.5, E = est + 0.5, S = sud - 0.3, N = nord + 0.3;
-  const rect = (x1: number, y1: number, x2: number, y2: number): GeoJSON.Feature => ({
+  const rect = (role: string, x1: number, y1: number, x2: number, y2: number): GeoJSON.Feature => ({
     type: "Feature",
-    properties: { role: "masque" },
+    properties: { role },
     geometry: { type: "Polygon", coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]] },
   });
+  const ligne = (role: string, c: [number, number][]): GeoJSON.Feature => ({ type: "Feature", properties: { role }, geometry: { type: "LineString", coordinates: c } });
+  // Marges blanches de la feuille autour de la zone carte (comme sur le papier).
+  const [cOl, cSl] = ll(cO, cS);
+  const [cEl, cNl] = ll(cE, cN);
   return {
     type: "FeatureCollection",
     features: [
-      rect(W, nord, E, N), rect(W, S, E, sud), rect(W, sud, ouest, nord), rect(est, sud, E, nord),
-      { type: "Feature", properties: { role: "cadre" }, geometry: { type: "LineString", coordinates: cadre } },
+      rect("masque", W, nord, E, N), rect("masque", W, S, E, sud), rect("masque", W, sud, ouest, nord), rect("masque", est, sud, E, nord),
+      rect("papier", ouest, cNl, est, nord), rect("papier", ouest, sud, est, cSl), rect("papier", ouest, cSl, cOl, cNl), rect("papier", cEl, cSl, est, cNl),
+      { type: "Feature", properties: { role: "bandeau" }, geometry: { type: "Polygon", coordinates: [anneau(cO, bS, cE, bN)] } },
+      ligne("page", anneau(pO, pS, pE, pN)),
+      ligne("cadre", anneau(cO, cS, cE, cN)),
     ],
   };
+}
+
+/** Emprise de la feuille entière (mètres Mercator), pour cadrer la vue. */
+/** Centre de la zone carte quand la feuille entière est centrée sur `vue` :
+ * le bandeau occupe le bas de la feuille, la zone carte est donc un peu au-dessus. */
+function centreZoneCarte(r: Reglages, vue: maplibregl.LngLat): maplibregl.LngLat {
+  const g = gabarit(r);
+  const k = 1 / Math.cos((vue.lat * Math.PI) / 180);
+  const decalMm = g.h / 2 - (g.marge + g.carteH / 2);
+  const [x, y] = ll2merc(vue.lng, vue.lat);
+  const [lng, lat] = merc2ll(x, y + ((decalMm * r.echelle) / 1000) * k);
+  return new maplibregl.LngLat(lng, lat);
+}
+
+const COUCHES_CADRE = ["cadre-masque", "cadre-papier", "cadre-bandeau", "cadre-page", "cadre-ligne"];
+
+function empriseFeuille(r: Reglages, centre: maplibregl.LngLat) {
+  const g = gabarit(r);
+  const e = emprise(r, centre);
+  const s = e.larg / g.carteW;
+  const n = e.cy + e.haut / 2 + g.marge * s;
+  return { o: e.cx - e.larg / 2 - g.marge * s, e: e.cx + e.larg / 2 + g.marge * s, n, s: n - g.h * s };
 }
 
 /** Longueur « ronde » de l'échelle graphique (m) pour environ `cible` mètres. */
@@ -420,11 +457,13 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
   carte.appendChild(panneau);
   const q = <T extends HTMLElement>(s: string) => panneau.querySelector<T>(s)!;
 
+  const centreCarte = () => centreZoneCarte(r, map.getCenter());
+
   const majCadre = () => {
     const src = map.getSource("cadre") as maplibregl.GeoJSONSource | undefined;
-    src?.setData(polygoneCadre(r, map.getCenter()));
+    src?.setData(polygoneCadre(r, centreCarte()));
     const g = gabarit(r);
-    const e = emprise(r, map.getCenter());
+    const e = emprise(r, centreCarte());
     const px = Math.round((g.w / 25.4) * r.dpi) * Math.round((g.h / 25.4) * r.dpi);
     q<HTMLElement>(".mp-info").textContent =
       `Feuille ${g.w} × ${g.h} mm · carte ${Math.round(g.carteW)} × ${Math.round(g.carteH)} mm, ` +
@@ -442,12 +481,14 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
     bouton.hidden = v;
     if (v) {
       if (!map.getSource("cadre")) {
-        map.addSource("cadre", { type: "geojson", data: polygoneCadre(r, map.getCenter()) });
-        map.addLayer({ id: "cadre-masque", type: "fill", source: "cadre", filter: ["==", ["get", "role"], "masque"], paint: { "fill-color": "#1d1d1f", "fill-opacity": 0.28 } });
-        map.addLayer({ id: "cadre-ligne", type: "line", source: "cadre", filter: ["==", ["get", "role"], "cadre"], paint: { "line-color": "#1d1d1f", "line-width": 2 } });
+        map.addSource("cadre", { type: "geojson", data: polygoneCadre(r, centreCarte()) });
+        map.addLayer({ id: "cadre-masque", type: "fill", source: "cadre", filter: ["==", ["get", "role"], "masque"], paint: { "fill-color": "#1d1d1f", "fill-opacity": 0.32, "fill-antialias": false } });
+        map.addLayer({ id: "cadre-papier", type: "fill", source: "cadre", filter: ["==", ["get", "role"], "papier"], paint: { "fill-color": "#ffffff", "fill-opacity": 0.7, "fill-antialias": false } });
+        map.addLayer({ id: "cadre-bandeau", type: "fill", source: "cadre", filter: ["==", ["get", "role"], "bandeau"], paint: { "fill-color": "#f4f2ee", "fill-opacity": 0.92 } });
+        map.addLayer({ id: "cadre-page", type: "line", source: "cadre", filter: ["==", ["get", "role"], "page"], paint: { "line-color": "#1d1d1f", "line-width": 1.5 } });
+        map.addLayer({ id: "cadre-ligne", type: "line", source: "cadre", filter: ["==", ["get", "role"], "cadre"], paint: { "line-color": "#1d1d1f", "line-width": 1, "line-dasharray": [3, 2] } });
       }
-      map.setLayoutProperty("cadre-masque", "visibility", "visible");
-      map.setLayoutProperty("cadre-ligne", "visibility", "visible");
+      for (const id of COUCHES_CADRE) map.setLayoutProperty(id, "visibility", "visible");
       // Vue imprimée : nord en haut, sans inclinaison.
       o.passer2D();
       map.easeTo({ pitch: 0, bearing: 0, duration: 400 });
@@ -458,9 +499,10 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
         q<HTMLInputElement>(".mp-titre").value = r.titre;
       }
       // Zoom pour voir tout le cadre.
-      const e = emprise(r, map.getCenter());
-      const [w, s] = merc2ll(e.cx - e.larg * 0.6, e.cy - e.haut * 0.6);
-      const [est, n] = merc2ll(e.cx + e.larg * 0.6, e.cy + e.haut * 0.6);
+      const f = empriseFeuille(r, centreCarte());
+      const dx = (f.e - f.o) * 0.08, dy = (f.n - f.s) * 0.08;
+      const [w, s] = merc2ll(f.o - dx, f.s - dy);
+      const [est, n] = merc2ll(f.e + dx, f.n + dy);
       // Le panneau couvre la droite (ordinateur) ou le bas (téléphone) de la
       // carte : on décale le centre de la carte vers la partie visible, et le
       // cadre suit ce centre.
@@ -468,8 +510,7 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
       map.fitBounds([[w, s], [est, n]], { duration: 400 });
       majCadre();
     } else if (map.getLayer("cadre-ligne")) {
-      map.setLayoutProperty("cadre-masque", "visibility", "none");
-      map.setLayoutProperty("cadre-ligne", "visibility", "none");
+      for (const id of COUCHES_CADRE) map.setLayoutProperty(id, "visibility", "none");
       map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
     }
   }
@@ -518,7 +559,7 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
 
   async function exporter(type: "pdf" | "png"): Promise<void> {
     const g = gabarit(r);
-    const centre = map.getCenter();
+    const centre = centreCarte();
     const e = emprise(r, centre);
     const legende = o.legende();
     const site = o.site()?.label ?? "";
