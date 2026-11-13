@@ -22,6 +22,7 @@ import {
 } from "./couches";
 import { carroyage } from "./lambert93";
 import { creerCoucheArbres3D } from "./arbres3d";
+import { brancherMiseEnPage, type ElementLegende } from "./mise-en-page";
 
 type Coloration = "neutre" | "hauteur" | "usage";
 
@@ -598,6 +599,43 @@ export function createAtelier(root: HTMLElement): Atelier {
     compter();
     if (!site) vide.hidden = false;
   });
+
+  // --- Mise en page et export ------------------------------------------------------
+  brancherMiseEnPage({
+    map,
+    carte: q<HTMLElement>(".at-carte"),
+    site: () => site,
+    passer2D: () => q<HTMLButtonElement>('.at-mode button[data-mode="2d"]').click(),
+    legende: () => {
+      const items: ElementLegende[] = [];
+      for (const c of COUCHES) {
+        const e = etat.get(c.id)!;
+        if (!e.actif || c.id === "repere") continue;
+        if (c.id === "fond") {
+          if (fond !== "aucun") items.push({ titre: `Fond : ${FONDS[fond].titre}`, source: fond === "plan" ? "IGN Plan" : "IGN BD ORTHO®" });
+          continue;
+        }
+        const it: ElementLegende = { titre: c.titre, source: c.source.replace(/ \(repli.*\)$/, "") };
+        if (c.id === "bati") {
+          if (coloration === "hauteur") it.pastilles = [...HAUTEURS.map((h) => ({ couleur: h.color, libelle: `${h.label} m` })), { couleur: INCONNU, libelle: "hauteur inconnue" }];
+          else if (coloration === "usage") it.pastilles = [...USAGES.map((u) => ({ couleur: u.color, libelle: u.valeur })), { couleur: USAGE_AUTRE, libelle: "annexe, autre" }];
+          else it.pastilles = [{ couleur: NEUTRE, libelle: "bâtiment" }];
+          it.titre = coloration === "hauteur" ? "Bâtiments par hauteur" : coloration === "usage" ? "Bâtiments par usage" : "Bâtiments";
+        }
+        if (c.id === "arbres") it.pastilles = [{ couleur: "#3f8f3a", libelle: "arbre recensé" }];
+        if (c.id === "vegetation") it.pastilles = [{ couleur: "#5f9e4b", libelle: "zone de végétation" }];
+        if (c.id === "ombres") it.pastilles = [{ couleur: "#1f2a44", libelle: `ombres, ${dateInput.value} ${hourInput.value.replace(".25", "h15").replace(".5", "h30").replace(".75", "h45")} h` }];
+        if (c.id === "perimetre") it.pastilles = [{ couleur: "#3a3a3c", libelle: "périmètre d'analyse" }];
+        if (c.id === "cosia") it.titre = `CoSIA ${millesime}`;
+        if (c.id === "carroyage") it.titre = `Carroyage Lambert-93, pas de ${pas} m`;
+        items.push(it);
+      }
+      return items;
+    },
+  });
+
+  // Accès pour les tests automatiques (lecture seule de l'état de la carte).
+  (root as HTMLElement & { __carte?: maplibregl.Map }).__carte = map;
 
   return { setSite, resize: () => map.resize() };
 }

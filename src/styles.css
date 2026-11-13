@@ -696,3 +696,36 @@ body[data-vue="atelier"] { overflow: hidden; }
   .m3d-date,
   .at-panneau input:not([type="checkbox"]):not([type="range"]) { font-size: 16px; }
 }
+
+/* --- Mise en page (atelier) ------------------------------------------------ */
+.mp-bouton {
+  position: absolute; z-index: 2; left: 12px; bottom: 36px;
+  padding: 8px 14px; border-radius: 999px; border: 0; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--accent-ink); background: var(--accent);
+  box-shadow: var(--shadow-pop);
+}
+.mp-bouton[hidden] { display: none; }
+.mp-panneau { right: 56px; top: 60px; width: 300px; max-height: calc(100% - 80px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.mp-panneau[hidden] { display: none; }
+.mp-tete { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+.mp-champ { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.mp-champ[hidden] { display: none; }
+.mp-champ input[type="text"], .mp-champ input[type="number"] {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--panel); padding: 6px 8px;
+  border: 1px solid var(--border-strong); border-radius: 8px; min-width: 0;
+}
+.mp-ligne { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.mp-ligne input { width: 100px; }
+.mp-un { font-size: 14px; color: var(--ink); }
+.mp-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.mp-presets button { font-size: 12px; padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.mp-info, .mp-etat { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.mp-etat:empty { display: none; }
+.mp-actions { display: flex; gap: 8px; }
+.mp-actions .btn-primary { flex: 1; height: 38px; font-size: 13px; }
+.mp-actions button:disabled { opacity: 0.5; cursor: progress; }
+.atelier .at-soleil:not([hidden]) ~ .mp-bouton { bottom: 150px; }
+@media (max-width: 800px) {
+  .mp-panneau { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 62%; }
+  .mp-champ input[type="text"], .mp-champ input[type="number"] { font-size: 16px; }
+}
