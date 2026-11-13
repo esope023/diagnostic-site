@@ -33,7 +33,7 @@ jobs:
                 await p.waitForSelector('.address-suggestions li[role=option]', {timeout:20000});
                 await p.keyboard.press('Enter');
                 await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
-                await p.click('.map-atelier'); await p.waitForTimeout(7000);
+                await p.click('.map-atelier'); await p.waitForFunction(()=>/périmètre/.test(document.querySelector('.at-site')?.textContent||''), null, {timeout:60000}); await p.waitForTimeout(3000);
                 await p.click('.mp-bouton'); await p.waitForTimeout(7000);
                 await p.screenshot({ path:`shots/ui-${name}.jpg`, quality:60, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
               } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
