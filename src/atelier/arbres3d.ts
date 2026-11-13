@@ -22,9 +22,37 @@ function alea(lat: number, lon: number, graine: number): number {
   return x - Math.floor(x);
 }
 
+/** Gabarit d'un arbre (m) : partagé par le volume 3D et le calcul d'ombre. */
+export interface GabaritArbre {
+  h: number;
+  rayon: number;
+  fut: number;
+  /** Demi-hauteur et hauteur du centre du houppier. */
+  sy: number;
+  cy: number;
+  resineux: boolean;
+}
+export function gabaritArbre(a: ArbreOsm): GabaritArbre {
+  const r1 = alea(a.lat, a.lon, 1);
+  const r2 = alea(a.lat, a.lon, 2);
+  // Proportions d'un arbre urbain adulte (retours du 13/11) : fût court,
+  // houppier large qui occupe l'essentiel de la hauteur.
+  const h = Math.max(4, Math.min(32, a.hauteur ?? 8 + r1 * 8));
+  const rayon = Math.max(1.5, Math.min(11, (a.couronne ?? 6 + r2 * 5) / 2));
+  const resineux = !!a.resineux;
+  const fut = resineux ? h * 0.15 : h * 0.28;
+  // Le houppier remplit l'arbre du haut du fût au sommet, en restant
+  // à peu près rond (ni galette, ni fuseau).
+  const sy = resineux ? (h - fut) / 2.2 : Math.max(rayon * 0.75, Math.min(rayon * 1.15, (h - fut) / 2));
+  const cy = resineux ? fut + 1.1 * sy : Math.max(fut + sy * 0.8, h - sy);
+  return { h, rayon, fut, sy, cy, resineux };
+}
+
 export interface CoucheArbres3D extends maplibregl.CustomLayerInterface {
   setArbres(arbres: ArbreOsm[], lat0: number, lon0: number): void;
   setOpacite(o: number): void;
+  /** Lumière solaire (azimut et hauteur en degrés, couleur) ; null : éclairage neutre par défaut. */
+  setSoleil(s: { azimut: number; hauteur: number; couleur: number; intensite: number } | null): void;
 }
 
 export function creerCoucheArbres3D(id: string): CoucheArbres3D {
@@ -36,7 +64,8 @@ export function creerCoucheArbres3D(id: string): CoucheArbres3D {
   scene.add(groupe);
 
   // Lumière douce : ciel et sol, plus un soleil rasant du sud-ouest.
-  scene.add(new THREE.HemisphereLight(0xdce8f2, 0x4a4436, 1.0));
+  const ciel = new THREE.HemisphereLight(0xdce8f2, 0x4a4436, 1.0);
+  scene.add(ciel);
   const soleil = new THREE.DirectionalLight(0xfff4e0, 1.25);
   soleil.position.set(-60, 120, 80);
   scene.add(soleil);
@@ -106,20 +135,12 @@ export function creerCoucheArbres3D(id: string): CoucheArbres3D {
         const r1 = alea(a.lat, a.lon, 1);
         const r2 = alea(a.lat, a.lon, 2);
         const r3 = alea(a.lat, a.lon, 3);
-        // Proportions d'un arbre urbain adulte (retours du 13/11) : fût court,
-        // houppier large qui occupe l'essentiel de la hauteur.
-        const h = Math.max(4, Math.min(32, a.hauteur ?? 8 + r1 * 8));
-        const rayon = Math.max(1.5, Math.min(11, (a.couronne ?? 6 + r2 * 5) / 2));
-        const fut = a.resineux ? h * 0.15 : h * 0.28;
+        const { rayon, fut, sy, cy } = gabaritArbre(a);
 
         m4.compose(new THREE.Vector3(x, 0, z), q.identity(), new THREE.Vector3(1.2 + rayon * 0.08, fut + rayon * 0.5, 1.2 + rayon * 0.08));
         troncs.setMatrixAt(i, m4);
 
         const forme = a.resineux ? parForme[2] : parForme[r3 < 0.55 ? 0 : 1];
-        // Le houppier remplit l'arbre du haut du fût au sommet, en restant
-        // à peu près rond (ni galette, ni fuseau).
-        const sy = a.resineux ? (h - fut) / 2.2 : Math.max(rayon * 0.75, Math.min(rayon * 1.15, (h - fut) / 2));
-        const cy = a.resineux ? fut + 1.1 * sy : Math.max(fut + sy * 0.8, h - sy);
         q.setFromAxisAngle(axeY, r1 * Math.PI * 2);
         forme.items.push(new THREE.Matrix4().compose(new THREE.Vector3(x, cy, z), q.clone(), new THREE.Vector3(rayon, sy, rayon)));
         forme.couleurs.push(new THREE.Color(VERTS[Math.floor(r2 * VERTS.length)]));
@@ -141,6 +162,28 @@ export function creerCoucheArbres3D(id: string): CoucheArbres3D {
         mesh.frustumCulled = false;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         groupe.add(mesh);
+      }
+      map?.triggerRepaint();
+    },
+
+    setSoleil(sol) {
+      if (!sol) {
+        soleil.position.set(-60, 120, 80);
+        soleil.color.setHex(0xfff4e0);
+        soleil.intensity = 1.25;
+        ciel.intensity = 1.0;
+      } else if (sol.hauteur <= 0) {
+        // Nuit : lumière du ciel seule, très atténuée.
+        soleil.intensity = 0;
+        ciel.intensity = 0.35;
+      } else {
+        const az = (sol.azimut * Math.PI) / 180;
+        const el = (sol.hauteur * Math.PI) / 180;
+        // Repère local : x = est, y = haut, z = sud.
+        soleil.position.set(Math.sin(az) * Math.cos(el) * 100, Math.sin(el) * 100, -Math.cos(az) * Math.cos(el) * 100);
+        soleil.color.setHex(sol.couleur);
+        soleil.intensity = 0.6 + 1.0 * sol.intensite;
+        ciel.intensity = 0.55 + 0.45 * sol.intensite;
       }
       map?.triggerRepaint();
     },
