@@ -22,6 +22,7 @@ import {
 } from "./couches";
 import { carroyage } from "./lambert93";
 import { creerCoucheArbres3D } from "./arbres3d";
+import { ombresArbres } from "./ombres-arbres";
 import { brancherMiseEnPage, type ElementLegende } from "./mise-en-page";
 
 type Coloration = "neutre" | "hauteur" | "usage";
@@ -127,6 +128,8 @@ export function createAtelier(root: HTMLElement): Atelier {
   let fond: Fond = "plan";
   let coloration: Coloration = "hauteur";
   let mode3d = false;
+  let rendu: "volume" | "point" = "volume";
+  let derniersArbres: { arbres: import("../modules/soleil/fetch").ArbreOsm[]; lat0: number; lon0: number } | null = null;
   let millesime: MillesimeCosia = "2021-2023";
   let pas: (typeof PAS_CARROYAGE)[number] = 100;
 
@@ -141,6 +144,11 @@ export function createAtelier(root: HTMLElement): Atelier {
         : c.id === "cosia"
           ? `<div class="segmented seg-sm" role="group" aria-label="Millésime CoSIA">
               ${(Object.keys(COSIA) as MillesimeCosia[]).map((m) => `<button type="button" data-cosia="${m}" aria-pressed="${m === millesime}">${m}</button>`).join("")}
+            </div>`
+        : c.id === "arbres"
+          ? `<div class="segmented seg-sm" role="group" aria-label="Rendu des arbres">
+              <button type="button" data-rendu="volume" aria-pressed="true">Volume</button>
+              <button type="button" data-rendu="point" aria-pressed="false">Point</button>
             </div>`
         : c.id === "carroyage"
           ? `<div class="segmented seg-sm" role="group" aria-label="Pas du carroyage">
@@ -255,6 +263,7 @@ export function createAtelier(root: HTMLElement): Atelier {
         vegetation: vecteur(),
         arbres: vecteur(),
         ombres: vecteur(),
+        "ombres-arbres": vecteur(),
         perimetre: vecteur(),
         carroyage: vecteur(),
       },
@@ -265,6 +274,7 @@ export function createAtelier(root: HTMLElement): Atelier {
         ...rasters.filter((c) => c.id !== "cadastre").map(raster),
         { id: "vegetation", type: "fill", source: "vegetation", layout: { visibility: "none" }, paint: { "fill-color": "#5f9e4b", "fill-opacity": 0.5 } },
         { id: "ombres", type: "fill", source: "ombres", layout: { visibility: "none" }, paint: { "fill-color": "#1f2a44", "fill-opacity": 0.4 } },
+        { id: "ombres-arbres", type: "fill", source: "ombres-arbres", layout: { visibility: "none" }, paint: { "fill-color": "#1f2a44", "fill-opacity": 0.32 } },
         raster(COUCHES.find((c) => c.id === "cadastre")!),
         { id: "bati-2d", type: "fill", source: "bati", paint: { "fill-color": NEUTRE, "fill-opacity": 1, "fill-outline-color": "rgba(60,60,60,0.45)" } },
         {
@@ -337,8 +347,9 @@ export function createAtelier(root: HTMLElement): Atelier {
       let visible = e.actif;
       if (lid === "bati-2d") visible = e.actif && !mode3d;
       if (lid === "bati-3d") visible = e.actif && mode3d;
-      if (lid === "arbres") visible = e.actif && !mode3d;
-      if (lid === "arbres-3d") visible = e.actif && mode3d;
+      // Arbres en volume dans les deux vues (vus en plan en 2D), ou en points.
+      if (lid === "arbres") visible = e.actif && rendu === "point";
+      if (lid === "arbres-3d") visible = e.actif && rendu === "volume";
       map.setLayoutProperty(lid, "visibility", visible ? "visible" : "none");
       const prop = PROP[layer.type];
       if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" ? Math.min(0.95, e.opacite) : e.opacite);
@@ -351,6 +362,14 @@ export function createAtelier(root: HTMLElement): Atelier {
       el.style.opacity = String(e.opacite);
     }
     if (id === "carroyage" && e.actif) dessinerCarroyage();
+    if (id === "ombres" || id === "arbres") {
+      const o = etat.get("ombres")!;
+      if (map.getLayer("ombres-arbres")) {
+        map.setLayoutProperty("ombres-arbres", "visibility", o.actif && etat.get("arbres")!.actif ? "visible" : "none");
+        map.setPaintProperty("ombres-arbres", "fill-opacity", o.opacite * 0.8);
+      }
+    }
+    if (id === "ombres" && !e.actif) eclairer(null);
     if (id === "ombres") {
       soleilPanel.hidden = !e.actif;
       if (e.actif) demanderOmbres();
@@ -390,6 +409,14 @@ export function createAtelier(root: HTMLElement): Atelier {
       root.querySelectorAll("[data-cosia]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       await pret;
       (map.getSource("cosia") as maplibregl.RasterTileSource).setTiles([tuilesCosia(millesime)]);
+    }),
+  );
+  root.querySelectorAll<HTMLButtonElement>("[data-rendu]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      rendu = b.dataset.rendu as typeof rendu;
+      root.querySelectorAll("[data-rendu]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      await pret;
+      appliquer("arbres");
     }),
   );
   root.querySelectorAll<HTMLButtonElement>("[data-pas]").forEach((b) =>
@@ -478,12 +505,46 @@ export function createAtelier(root: HTMLElement): Atelier {
          azimut ${sun.azimuthDeg.toFixed(0)}° · un bâtiment de 10 m porte ${l10.toFixed(0)} m d'ombre`;
     return sun;
   }
-  function demanderOmbres(): void {
-    if (!etat.get("ombres")!.actif || !batimentsEnvoyes) {
-      soleil();
+  /**
+   * Lumière de la carte calée sur le soleil (ombres actives) : les façades
+   * éclairées suivent l'heure et la saison, lumière chaude et rasante au lever,
+   * au coucher et en hiver, sombre la nuit. null : éclairage neutre par défaut.
+   */
+  function eclairer(sun: { azimuthDeg: number; elevationDeg: number } | null): void {
+    if (!sun) {
+      map.setLight({ anchor: "viewport", position: [1.15, 210, 30], color: "#ffffff", intensity: 0.5 });
+      coucheArbres.setSoleil(null);
       return;
     }
-    const sun = soleil();
+    const el = sun.elevationDeg;
+    if (el <= 0.5) {
+      map.setLight({ anchor: "map", position: [1.5, sun.azimuthDeg, 80], color: "#7d86ad", intensity: 0.15 });
+      coucheArbres.setSoleil({ azimut: sun.azimuthDeg, hauteur: 0, couleur: 0x7d86ad, intensite: 0 });
+      return;
+    }
+    const t = Math.min(1, el / 45); // 0 : soleil rasant, 1 : soleil haut
+    const chaud = { r: 255, g: Math.round(176 + 70 * t), b: Math.round(110 + 135 * t) };
+    const hex = (chaud.r << 16) | (chaud.g << 8) | chaud.b;
+    map.setLight({
+      anchor: "map",
+      position: [1.5, sun.azimuthDeg, Math.max(5, 90 - el)],
+      color: `#${hex.toString(16).padStart(6, "0")}`,
+      intensity: 0.3 + 0.35 * t,
+    });
+    coucheArbres.setSoleil({ azimut: sun.azimuthDeg, hauteur: el, couleur: hex, intensite: t });
+  }
+
+  function demanderOmbres(): void {
+    const actif = etat.get("ombres")!.actif;
+    const s0 = soleil();
+    if (actif && s0) {
+      eclairer(s0);
+      (map.getSource("ombres-arbres") as maplibregl.GeoJSONSource | undefined)?.setData(
+        ombresArbres(derniersArbres?.arbres ?? [], s0.azimuthDeg, s0.elevationDeg),
+      );
+    }
+    if (!actif || !batimentsEnvoyes) return;
+    const sun = s0;
     if (!sun) return;
     if (enCours) {
       enAttente = true;
@@ -560,6 +621,8 @@ export function createAtelier(root: HTMLElement): Atelier {
           features: arbres.map((a) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [a.lon, a.lat] } })),
         });
         coucheArbres.setArbres(arbres, ctx.lat, ctx.lon);
+        derniersArbres = { arbres, lat0: ctx.lat, lon0: ctx.lon };
+        demanderOmbres();
         etatCouche(id, arbres.length ? `${arbres.length} arbres recensés dans le périmètre.` : "Aucun arbre recensé dans OpenStreetMap ici (inventaire souvent incomplet).");
       } else if (id === "vegetation") {
         etatCouche(id, "Chargement…");
@@ -629,6 +692,7 @@ export function createAtelier(root: HTMLElement): Atelier {
     map,
     carte: q<HTMLElement>(".at-carte"),
     site: () => site,
+    arbres3d: () => (etat.get("arbres")!.actif && rendu === "volume" ? derniersArbres : null),
     passer2D: () => q<HTMLButtonElement>('.at-mode button[data-mode="2d"]').click(),
     legende: () => {
       const items: ElementLegende[] = [];
@@ -646,7 +710,7 @@ export function createAtelier(root: HTMLElement): Atelier {
           else it.pastilles = [{ couleur: NEUTRE, libelle: "bâtiment" }];
           it.titre = coloration === "hauteur" ? "Bâtiments par hauteur" : coloration === "usage" ? "Bâtiments par usage" : "Bâtiments";
         }
-        if (c.id === "arbres") it.pastilles = [{ couleur: "#3f8f3a", libelle: "arbre recensé" }];
+        if (c.id === "arbres") it.pastilles = [{ couleur: rendu === "volume" ? "#3a7a30" : "#3f8f3a", libelle: "arbre recensé" }];
         if (c.id === "vegetation") it.pastilles = [{ couleur: "#5f9e4b", libelle: "zone de végétation" }];
         if (c.id === "ombres") it.pastilles = [{ couleur: "#1f2a44", libelle: `ombres, ${dateInput.value} ${hourInput.value.replace(".25", "h15").replace(".5", "h30").replace(".75", "h45")} h` }];
         if (c.id === "perimetre") it.pastilles = [{ couleur: "#3a3a3c", libelle: "périmètre d'analyse" }];

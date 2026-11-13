@@ -12,6 +12,8 @@
 
 import maplibregl from "maplibre-gl";
 import { jsPDF } from "jspdf";
+import { creerCoucheArbres3D } from "./arbres3d";
+import type { ArbreOsm } from "../modules/soleil/fetch";
 
 const MERC = 40075016.686; // circonférence équatoriale (m), Web Mercator
 const TUILE = 2048; // côté d'un morceau rendu hors écran (px)
@@ -39,6 +41,8 @@ export interface OptionsMiseEnPage {
   carte: HTMLElement;
   legende(): ElementLegende[];
   site(): { label: string } | null;
+  /** Arbres en volume à redessiner sur la planche (null : rendu en points ou couche éteinte). */
+  arbres3d(): { arbres: ArbreOsm[]; lat0: number; lon0: number } | null;
   /** Bascule la vue en 2D (la planche est imprimée nord en haut, à plat). */
   passer2D(): void;
 }
@@ -114,6 +118,7 @@ function longueurRonde(cible: number): number {
 
 /** Rend la carte à l'emprise demandée, morceau par morceau. */
 async function rendre(
+  arbres: { arbres: ArbreOsm[]; lat0: number; lon0: number } | null,
   map: maplibregl.Map,
   r: Reglages,
   centre: maplibregl.LngLat,
@@ -147,6 +152,12 @@ async function rendre(
   });
   try {
     await new Promise<void>((ok) => hors.once("load", () => ok()));
+    if (arbres) {
+      // La couche three.js n'est pas dans le style : on la recrée sur la carte hors écran.
+      const couche = creerCoucheArbres3D("arbres-3d-impression");
+      hors.addLayer(couche, hors.getLayer("carroyage") ? "carroyage" : undefined);
+      couche.setArbres(arbres.arbres, arbres.lat0, arbres.lon0);
+    }
     const nx = Math.ceil(pxW / TUILE);
     const ny = Math.ceil(pxH / TUILE);
     let fait = 0;
@@ -525,7 +536,7 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
     try {
       if (type === "pdf") {
         const doc = new jsPDF({ orientation: g.w > g.h ? "landscape" : "portrait", unit: "mm", format: [g.w, g.h], compress: true });
-        await rendre(map, r, centre, pxW, pxH, (img, x, y) => {
+        await rendre(o.arbres3d(), map, r, centre, pxW, pxH, (img, x, y) => {
           doc.addImage(img.toDataURL("image/jpeg", 0.9), "JPEG", g.marge + x / pxParMm, g.marge + y / pxParMm, img.width / pxParMm, img.height / pxParMm, undefined, "FAST");
         }, (f, t) => (etat.textContent = `Rendu de la carte : ${f}/${t}…`));
         habillagePdf(doc, r, g, e.solW, legende, site);
@@ -537,7 +548,7 @@ export function brancherMiseEnPage(o: OptionsMiseEnPage): void {
         const ctx = c.getContext("2d")!;
         ctx.fillStyle = "#fff";
         ctx.fillRect(0, 0, c.width, c.height);
-        await rendre(map, r, centre, pxW, pxH, (img, x, y) => ctx.drawImage(img, Math.round(g.marge * pxParMm) + x, Math.round(g.marge * pxParMm) + y),
+        await rendre(o.arbres3d(), map, r, centre, pxW, pxH, (img, x, y) => ctx.drawImage(img, Math.round(g.marge * pxParMm) + x, Math.round(g.marge * pxParMm) + y),
           (f, t) => (etat.textContent = `Rendu de la carte : ${f}/${t}…`));
         habillageCanvas(ctx, r, g, pxParMm, e.solW, legende, site);
         const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));

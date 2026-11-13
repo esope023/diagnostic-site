@@ -105,10 +105,10 @@ export const COUCHES: CoucheDef[] = [
     id: "ombres",
     famille: "Soleil",
     titre: "Ombres portées",
-    source: "Calcul à partir des hauteurs BD TOPO®",
+    source: "Calcul à partir des hauteurs BD TOPO® et des arbres OSM",
     active: false,
     opacite: 0.4,
-    note: "Sol plat, toits plats ; relief et végétation non pris en compte.",
+    note: "Bâtiments et arbres, sol plat, toits plats, relief non pris en compte. Ombre des arbres indicative quand leur taille n'est pas renseignée. La lumière de la carte suit le soleil.",
   },
   {
     id: "zonage",
