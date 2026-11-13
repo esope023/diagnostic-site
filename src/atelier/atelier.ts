@@ -98,7 +98,31 @@ async function fetchVegetation(ctx: SiteContext, r: number): Promise<GeoJSON.Fea
   });
 }
 
+/** WebGL disponible ? (désactivé si le navigateur a coupé l'accélération graphique). */
+function webglDisponible(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
 export function createAtelier(root: HTMLElement): Atelier {
+  if (!webglDisponible()) {
+    root.innerHTML = `<div class="at-sans-webgl"><div>
+      <h2>La carte de l'atelier ne peut pas s'afficher</h2>
+      <p>Le navigateur a désactivé l'accélération graphique (WebGL), nécessaire à la carte 2D et 3D.
+      Cela arrive souvent après un plantage du moteur graphique du navigateur.</p>
+      <ol>
+        <li>Quittez complètement le navigateur, puis relancez-le.</li>
+        <li>Si le problème persiste, dans Chrome : Réglages › Système › activez « Utiliser l'accélération graphique si disponible ».</li>
+        <li>Contrôle : la page <code>chrome://gpu</code> doit indiquer « WebGL : Hardware accelerated ».</li>
+      </ol>
+      <p>L'onglet <a href="#diagnostic">Diagnostic</a> reste utilisable.</p>
+    </div></div>`;
+    return { setSite: async () => {}, resize: () => {} };
+  }
   const etat = new Map<string, Etat>(COUCHES.map((c) => [c.id, { actif: c.active, opacite: c.opacite }]));
   let fond: Fond = "plan";
   let coloration: Coloration = "hauteur";
