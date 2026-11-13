@@ -62,4 +62,11 @@ jobs:
           })();
           JS
           node t.cjs
-          cd shots && for f in *.jpg; do echo "IMGSTART $f"; base64 -w 60000 "$f"; echo "IMGEND $f"; done
+          python3 -c "
+          import base64,glob,sys,time
+          for f in sorted(glob.glob('shots/*.jpg')):
+              b=base64.b64encode(open(f,'rb').read()).decode()
+              print('IMGSTART',f.split('/')[-1],flush=True)
+              for i in range(0,len(b),20000): print(b[i:i+20000],flush=True); time.sleep(0.05)
+              print('IMGEND',f.split('/')[-1],flush=True)
+          "
