@@ -36,20 +36,16 @@ jobs:
               await p.waitForSelector('.map-atelier:not([hidden])', {timeout:60000});
               await p.click('.map-atelier'); await p.waitForTimeout(6000);
               await p.click('[data-couche="zonage"] .switch');
-              await p.click('.mp-bouton'); await p.waitForTimeout(2500);
-              log('info', await p.innerText('.mp-info'));
+              await p.click('.mp-bouton'); await p.waitForTimeout(9000);
+              log('titre', await p.inputValue('.mp-titre'));
               await p.screenshot({ path:'shots/ui.jpg', quality:60, timeout:60000 }).catch(e=>log('capture ui', e.message.split('\n')[0]));
-              const dlPdf = p.waitForEvent('download', { timeout: 240000 });
-              await p.click('.mp-pdf');
-              const d1 = await dlPdf; await d1.saveAs('dl/' + d1.suggestedFilename()); log('PDF', d1.suggestedFilename(), await p.innerText('.mp-etat'));
-              const dlPng = p.waitForEvent('download', { timeout: 240000 });
-              await p.click('.mp-png');
-              const d2 = await dlPng; await d2.saveAs('dl/' + d2.suggestedFilename()); log('PNG', d2.suggestedFilename(), await p.innerText('.mp-etat'));
-              await p.click('[data-format="A0"]'); await p.waitForTimeout(500);
-              log('info A0', await p.innerText('.mp-info'));
-              const dlA0 = p.waitForEvent('download', { timeout: 600000 });
-              await p.click('.mp-pdf');
-              const d3 = await dlA0; await d3.saveAs('dl/A0-' + d3.suggestedFilename()); log('PDF A0', await p.innerText('.mp-etat'));
+              for (const [fmt, orient] of [['A4','portrait'], ['A1','paysage']]) {
+                await p.click(`[data-format="${fmt}"]`); await p.click(`[data-orient="${orient}"]`); await p.waitForTimeout(400);
+                log('info', fmt, await p.innerText('.mp-info'));
+                const dl = p.waitForEvent('download', { timeout: 600000 });
+                await p.click('.mp-pdf');
+                const d = await dl; await d.saveAs(`dl/${fmt}.pdf`); log('PDF', fmt, await p.innerText('.mp-etat'));
+              }
             } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
             await b.close();
           })();
@@ -57,8 +53,8 @@ jobs:
           node t.cjs
           ls -la dl
           for f in dl/*.pdf; do echo "== $f"; pdfinfo "$f" | grep -E "Pages|Page size|File size"; done
-          f=$(ls dl/*.pdf | grep -v A0 | head -1); pdftoppm -r 60 -jpeg -jpegopt quality=70 "$f" shots/pdf-a3
-          f=$(ls dl/A0-*.pdf | head -1); [ -n "$f" ] && pdftoppm -r 18 -jpeg -jpegopt quality=70 "$f" shots/pdf-a0
+          pdftoppm -r 60 -jpeg -jpegopt quality=70 dl/A4.pdf shots/pdf-a4
+          pdftoppm -r 25 -jpeg -jpegopt quality=70 dl/A1.pdf shots/pdf-a1
           f=$(ls dl/*.png | head -1); [ -n "$f" ] && python3 -c "
           from PIL import Image; im=Image.open('$f'); print('PNG', im.size); im.thumbnail((1400,1400)); im.convert('RGB').save('shots/png.jpg', quality=70)"
           python3 -c "
