@@ -34,8 +34,10 @@ jobs:
               await p.route(/overpass|maps\.mail\.ru/, (route) => {
                 const u = decodeURIComponent(route.request().url());
                 if (!/natural.*tree/.test(u)) return route.continue();
-                const lat0 = 43.3125, lon0 = 5.4005, els = [];
-                for (let i = 0; i < 40; i++) els.push({ type:'node', id:i, lat: lat0 + 0.00012*Math.floor(i/8), lon: lon0 + 0.00011*(i%8), tags: i%9===0 ? { leaf_type:'needleleaved' } : (i%7===0 ? { height:'16', diameter_crown:'9' } : {}) });
+                const m = u.match(/around:(\d+),([\d.]+),([\d.]+)/); const lat0 = +m[2], lon0 = +m[3], els = [];
+                // Deux alignements de part et d'autre du site, et un bosquet de 3 rangs.
+                for (let i = 0; i < 60; i++) { const ring = 30 + 6 * Math.floor(i / 20); const a = (i % 20) / 20 * 2 * Math.PI;
+                  els.push({ type:'node', id:i, lat: lat0 + ring * Math.cos(a) / 110540, lon: lon0 + ring * Math.sin(a) / (111320 * Math.cos(lat0*Math.PI/180)), tags: i%9===0 ? { leaf_type:'needleleaved', height:'18' } : { height: String(14 + (i%5)*2), diameter_crown: String(8 + (i%3)*2) } }); }
                 route.fulfill({ status:200, contentType:'application/json', headers:{'access-control-allow-origin':'*'}, body: JSON.stringify({ elements: els }) });
               });
               p.on('pageerror', e=>log('PAGEERROR', e.message.slice(0,200)));
