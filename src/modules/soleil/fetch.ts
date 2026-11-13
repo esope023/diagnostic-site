@@ -29,7 +29,25 @@ interface OverpassTreeNode {
   type: "node";
   lat: number;
   lon: number;
+  tags?: Record<string, string>;
 }
+
+/** Arbre OSM : position, et dimensions quand elles sont renseignées. */
+export interface ArbreOsm {
+  lat: number;
+  lon: number;
+  /** Hauteur (m), balise height. */
+  hauteur?: number;
+  /** Diamètre du houppier (m), balise diameter_crown. */
+  couronne?: number;
+  /** Résineux (leaf_type=needleleaved). */
+  resineux?: boolean;
+}
+
+const nombre = (v?: string) => {
+  const n = v ? parseFloat(v.replace(",", ".")) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
 interface OverpassTreeResponse {
   elements: OverpassTreeNode[];
 }
@@ -39,7 +57,7 @@ interface OverpassTreeResponse {
  * repère visuel : n'entre PAS dans le calcul du masque solaire, qui reste
  * basé sur les bâtiments (une hauteur de couronne d'arbre non mesurée
  * fausserait le calcul plus qu'elle ne l'affinerait). */
-export async function fetchTrees(ctx: SiteContext, radiusM: number): Promise<LatLon[]> {
+export async function fetchTrees(ctx: SiteContext, radiusM: number): Promise<ArbreOsm[]> {
   const query = `
     [out:json][timeout:20];
     node["natural"="tree"](around:${radiusM},${ctx.lat},${ctx.lon});
@@ -56,7 +74,13 @@ export async function fetchTrees(ctx: SiteContext, radiusM: number): Promise<Lat
     });
     return data.elements
       .filter((e) => e.type === "node")
-      .map((e) => ({ lat: e.lat, lon: e.lon }));
+      .map((e) => ({
+        lat: e.lat,
+        lon: e.lon,
+        hauteur: nombre(e.tags?.height),
+        couronne: nombre(e.tags?.diameter_crown),
+        resineux: e.tags?.leaf_type === "needleleaved" || undefined,
+      }));
   } catch {
     return []; // pas bloquant : l'héliodon s'affiche simplement sans arbres
   }

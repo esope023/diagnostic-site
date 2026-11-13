@@ -687,3 +687,12 @@ body[data-vue="atelier"] { overflow: hidden; }
 .at-leg summary { cursor: pointer; font-size: 12px; color: var(--ink-2); }
 .at-leg-box { margin-top: 6px; max-height: 260px; overflow: auto; border-radius: 6px; background: #fff; }
 .at-leg-box .at-legende-img { display: block; width: 100%; max-width: 100%; max-height: none; height: auto; padding: 4px; border-radius: 0; }
+
+/* Safari iOS agrandit la page au toucher d'un champ dont le texte fait moins
+ * de 16 px, et la page reste zoomée (droite hors de l'écran) : 16 px mini. */
+@media (max-width: 800px) {
+  .search-field input,
+  .segmented-custom input,
+  .m3d-date,
+  .at-panneau input:not([type="checkbox"]):not([type="range"]) { font-size: 16px; }
+}

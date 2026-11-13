@@ -21,6 +21,7 @@ import {
   type CoucheDef, type Fond, type MillesimeCosia,
 } from "./couches";
 import { carroyage } from "./lambert93";
+import { creerCoucheArbres3D } from "./arbres3d";
 
 type Coloration = "neutre" | "hauteur" | "usage";
 
@@ -58,26 +59,6 @@ function repere(): HTMLElement {
     <line x1="1" y1="18" x2="11" y2="18" /><line x1="25" y1="18" x2="35" y2="18" />
     <circle cx="18" cy="18" r="7" class="ring" /><circle cx="18" cy="18" r="3" class="dot" /></svg>`;
   return el;
-}
-
-/** Arbre en volume (3D) : tronc et houppier octogonaux, taille générique. */
-const ARBRE = { tronc: { r: 0.3, h: 2.2 }, houppier: { r: 2.5, base: 2, h: 7 } };
-function octogone(lat: number, lon: number, rM: number): [number, number][] {
-  const mLat = 110_540;
-  const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
-  return Array.from({ length: 9 }, (_, i) => {
-    const a = ((i % 8) / 8) * 2 * Math.PI + Math.PI / 8;
-    return [lon + (Math.cos(a) * rM) / mLon, lat + (Math.sin(a) * rM) / mLat] as [number, number];
-  });
-}
-function arbres3D(arbres: { lat: number; lon: number }[]): GeoJSON.FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: arbres.flatMap((a) => [
-      { type: "Feature", properties: { base: 0, h: ARBRE.tronc.h, c: "#7a5c3e" }, geometry: { type: "Polygon", coordinates: [octogone(a.lat, a.lon, ARBRE.tronc.r)] } },
-      { type: "Feature", properties: { base: ARBRE.houppier.base, h: ARBRE.houppier.h, c: "#4f8f3f" }, geometry: { type: "Polygon", coordinates: [octogone(a.lat, a.lon, ARBRE.houppier.r)] } },
-    ] as GeoJSON.Feature[]),
-  };
 }
 
 function batiGeoJSON(data: BuildingsResult): GeoJSON.FeatureCollection {
@@ -250,7 +231,6 @@ export function createAtelier(root: HTMLElement): Atelier {
         arbres: vecteur(),
         ombres: vecteur(),
         perimetre: vecteur(),
-        arbres3d: vecteur(),
         carroyage: vecteur(),
       },
       layers: [
@@ -282,13 +262,6 @@ export function createAtelier(root: HTMLElement): Atelier {
           },
         },
         {
-          id: "arbres-3d",
-          type: "fill-extrusion",
-          source: "arbres3d",
-          layout: { visibility: "none" },
-          paint: { "fill-extrusion-color": ["get", "c"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.9 },
-        },
-        {
           id: "carroyage",
           type: "line",
           source: "carroyage",
@@ -306,7 +279,15 @@ export function createAtelier(root: HTMLElement): Atelier {
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 140 }), "bottom-right");
-  const pret = new Promise<void>((r) => map.once("load", () => r()));
+  // Arbres en volume (three.js), sous le carroyage et le périmètre.
+  const coucheArbres = creerCoucheArbres3D("arbres-3d");
+  const pret = new Promise<void>((r) =>
+    map.once("load", () => {
+      map.addLayer(coucheArbres, "carroyage");
+      map.setLayoutProperty("arbres-3d", "visibility", "none");
+      r();
+    }),
+  );
 
   // --- Application de l'état aux couches ---------------------------------------
   const PROP: Record<string, string> = { raster: "raster-opacity", fill: "fill-opacity", circle: "circle-opacity", line: "line-opacity", "fill-extrusion": "fill-extrusion-opacity" };
@@ -335,7 +316,8 @@ export function createAtelier(root: HTMLElement): Atelier {
       if (lid === "arbres-3d") visible = e.actif && mode3d;
       map.setLayoutProperty(lid, "visibility", visible ? "visible" : "none");
       const prop = PROP[layer.type];
-      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" || lid === "arbres-3d" ? Math.min(0.95, e.opacite) : e.opacite);
+      if (prop) map.setPaintProperty(lid, prop, lid === "bati-3d" ? Math.min(0.95, e.opacite) : e.opacite);
+      if (lid === "arbres-3d") coucheArbres.setOpacite(e.opacite);
       if (lid === "arbres") map.setPaintProperty(lid, "circle-stroke-opacity", e.opacite);
     }
     if (id === "repere" && marker) {
@@ -552,7 +534,7 @@ export function createAtelier(root: HTMLElement): Atelier {
           type: "FeatureCollection",
           features: arbres.map((a) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [a.lon, a.lat] } })),
         });
-        (map.getSource("arbres3d") as maplibregl.GeoJSONSource).setData(arbres3D(arbres));
+        coucheArbres.setArbres(arbres, ctx.lat, ctx.lon);
         etatCouche(id, arbres.length ? `${arbres.length} arbres recensés dans le périmètre.` : "Aucun arbre recensé dans OpenStreetMap ici (inventaire souvent incomplet).");
       } else if (id === "vegetation") {
         etatCouche(id, "Chargement…");
