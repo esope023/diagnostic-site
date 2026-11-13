@@ -54,6 +54,7 @@ jobs:
                 await p.waitForFunction(()=>!/Chargement/.test(document.querySelector('[data-couche="arbres"] .at-etat')?.textContent||''), null, {timeout:90000}).catch(()=>log('arbres encore en chargement'));
                 log('arbres', await p.innerText('[data-couche="arbres"] .at-etat').catch(()=>''));
                 await p.evaluate(()=>{}); await p.waitForTimeout(1500);
+                log('site', await p.innerText('.at-site'));
                 log('ATELIER 3D', JSON.stringify(await p.evaluate(debord)));
                 if (nomNav === 'chromium') await p.locator('.at-canvas canvas').screenshot({ path:`shots/${name}-3d.jpg`, quality:65, timeout:60000 }).catch(e=>log('capture', e.message.split('\n')[0]));
               } catch(e) { log('ECHEC', e.message.split('\n')[0]); }
