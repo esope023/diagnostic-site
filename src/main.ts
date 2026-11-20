@@ -77,8 +77,25 @@ let atelierChargement: Promise<import("./atelier/atelier").Atelier> | null = nul
 
 async function getAtelier() {
   if (atelier) return atelier;
-  atelierChargement ??= import("./atelier/atelier").then((m) => m.createAtelier(vueAtelier));
+  atelierChargement ??= import("./atelier/atelier")
+    .then((m) => m.createAtelier(vueAtelier))
+    .catch((e: unknown) => {
+      // Page ouverte avant une mise en ligne : l'ancien fichier de l'atelier
+      // n'existe plus sur le serveur (« Failed to fetch dynamically imported
+      // module »). On recharge une fois la page pour prendre la nouvelle version.
+      atelierChargement = null;
+      const deja = sessionStorage.getItem("atelier:recharge");
+      if (!deja) {
+        sessionStorage.setItem("atelier:recharge", "1");
+        location.reload();
+      } else {
+        sessionStorage.removeItem("atelier:recharge");
+        vueAtelier.innerHTML = `<p class="error" style="margin:24px">L'atelier n'a pas pu se charger (${e instanceof Error ? e.message : "erreur réseau"}). Rechargez la page.</p>`;
+      }
+      throw e;
+    });
   atelier = await atelierChargement;
+  sessionStorage.removeItem("atelier:recharge");
   return atelier;
 }
 
